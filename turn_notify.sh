@@ -18,7 +18,7 @@ SES_SMTP_PASS="${SES_SMTP_PASS:-}"
 SES_SMTP_HOST="${SES_SMTP_HOST:-email-smtp.us-east-1.amazonaws.com}"
 FROM_EMAIL="${FROM_EMAIL:-freeciv@andrewmcgrath.info}"
 SERVER_HOST="${SERVER_HOST:-freeciv.andrewmcgrath.info}"
-CC_EMAIL="andrewjohnmcgrath@gmail.com"
+CC_EMAIL="${CC_EMAIL:-}"
 DB_PATH="/data/saves/freeciv.sqlite"
 STATUS_JSON="${WEBROOT:-/opt/freeciv/www}/status.json"
 GAZETTE_JSON="${SAVE_DIR:-/data/saves}/gazette.json"
@@ -172,7 +172,7 @@ echo "$EMAILS" | while IFS='|' read -r NAME EMAIL; do
   EMAIL_MSG=$(cat <<EMAILEOF
 From: Freeciv Server <$FROM_EMAIL>
 To: $EMAIL
-Cc: $CC_EMAIL
+$([ -n "$CC_EMAIL" ] && echo "Cc: $CC_EMAIL")
 Subject: $SUBJECT
 MIME-Version: 1.0
 Content-Type: text/html; charset=UTF-8
@@ -247,7 +247,7 @@ EMAILEOF
     --ssl-reqd \
     --mail-from "$FROM_EMAIL" \
     --mail-rcpt "$EMAIL" \
-    --mail-rcpt "$CC_EMAIL" \
+    ${CC_EMAIL:+--mail-rcpt "$CC_EMAIL"} \
     --user "$SES_SMTP_USER:$SES_SMTP_PASS" \
     --upload-file - 2>&1
 

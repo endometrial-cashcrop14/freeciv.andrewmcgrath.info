@@ -64,6 +64,16 @@
   <p class="subtitle">Server updates, fixes, and new features.</p>
 
   <div class="entry">
+    <div class="entry-date">March 18, 2026</div>
+    <div class="entry-title">Open source & reliability fixes</div>
+    <ul>
+      <li><span class="tag tag-new">New</span> <strong>Open source</strong> — the server code is now public at <a href="https://github.com/ndroo/freeciv.andrewmcgrath.info">github.com/ndroo/freeciv.andrewmcgrath.info</a>. PRs welcome!</li>
+      <li><span class="tag tag-fix">Fix</span> <strong>Turn Done checkmarks</strong> — fixed a race condition where the status page snapshot could time out, causing all players to show as not done. Now polls for up to 10 seconds instead of a fixed 3-second wait.</li>
+      <li><span class="tag tag-improve">Improve</span> <strong>Credentials cleanup</strong> — moved all secrets (SES, API keys, player credentials) out of the codebase into environment variables and gitignored config files.</li>
+    </ul>
+  </div>
+
+  <div class="entry">
     <div class="entry-date">March 17, 2026</div>
     <div class="entry-title">Attendance tracking</div>
     <ul>

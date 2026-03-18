@@ -32,9 +32,9 @@ DB_PATH="/data/saves/freeciv.sqlite"
 SES_SMTP_USER="${SES_SMTP_USER:-}"
 SES_SMTP_PASS="${SES_SMTP_PASS:-}"
 SES_SMTP_HOST="${SES_SMTP_HOST:-email-smtp.us-east-1.amazonaws.com}"
-FROM_EMAIL="freeciv@andrewmcgrath.info"
-CC_EMAIL="andrewjohnmcgrath@gmail.com"
-SERVER_HOST="freeciv.andrewmcgrath.info"
+FROM_EMAIL="${FROM_EMAIL:-freeciv@andrewmcgrath.info}"
+CC_EMAIL="${CC_EMAIL:-}"
+SERVER_HOST="${SERVER_HOST:-freeciv.andrewmcgrath.info}"
 
 # ============================================================
 # Functions
@@ -71,7 +71,7 @@ send_welcome_email() {
   EMAIL_BODY=$(cat <<EMAILEOF
 From: Freeciv Server <$FROM_EMAIL>
 To: $EMAIL
-Cc: $CC_EMAIL
+$([ -n "$CC_EMAIL" ] && echo "Cc: $CC_EMAIL")
 Subject: You have been invited to a Freeciv game!
 MIME-Version: 1.0
 Content-Type: text/html; charset=UTF-8
@@ -166,7 +166,7 @@ EMAILEOF
     --ssl-reqd \
     --mail-from "$FROM_EMAIL" \
     --mail-rcpt "$EMAIL" \
-    --mail-rcpt "$CC_EMAIL" \
+    ${CC_EMAIL:+--mail-rcpt "$CC_EMAIL"} \
     --user "$SES_SMTP_USER:$SES_SMTP_PASS" \
     --upload-file - 2>/dev/null
 
