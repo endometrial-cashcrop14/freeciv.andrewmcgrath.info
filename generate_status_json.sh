@@ -590,12 +590,12 @@ if [ "$TURN" != "0" ] && [ "$NO_LIVE" = "false" ] && [ -p /tmp/server-input ]; t
   PRE_SAVE_LINES=$(wc -l < "$LOGFILE" 2>/dev/null || echo 0)
   rm -f /tmp/status-snapshot.sav*
   echo "save /tmp/status-snapshot" > /tmp/server-input 2>/dev/null
-  # Poll for snapshot file to appear (up to 10 seconds)
+  # Wait for server to confirm save is complete (check log for "Game saved" message)
   SNAP_WAIT=0
   while [ $SNAP_WAIT -lt 10 ]; do
-    ls /tmp/status-snapshot.sav* >/dev/null 2>&1 && break
     sleep 1
     SNAP_WAIT=$((SNAP_WAIT + 1))
+    tail -n +"$((PRE_SAVE_LINES + 1))" "$LOGFILE" 2>/dev/null | grep -q "Game saved as" && break
   done
 
   SNAP_FILE=$(ls -1t /tmp/status-snapshot.sav* 2>/dev/null | head -1)
