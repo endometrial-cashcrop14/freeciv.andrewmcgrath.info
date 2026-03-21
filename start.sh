@@ -4,6 +4,7 @@
 
 FIFO=/tmp/server-input
 SAVE_DIR=/data/saves
+WEBROOT=/opt/freeciv/www
 LOGFILE=/data/saves/server.log
 MARKER=/tmp/last-notified-turn
 TURN_START_FILE=/data/saves/turn_start_epoch
@@ -309,7 +310,10 @@ done
 
 # Symlink persisted gazette illustrations into webroot
 for f in "$SAVE_DIR"/gazette-*.png; do
-  [ -f "$f" ] && ln -sf "$f" "$WEBROOT/$(basename $f)"
+  if [ -f "$f" ]; then
+    ln -sf "$f" "$WEBROOT/$(basename $f)"
+    echo "[startup] Symlinked $(basename $f) into webroot"
+  fi
 done
 
 # Process 4: HTTP server for status page
