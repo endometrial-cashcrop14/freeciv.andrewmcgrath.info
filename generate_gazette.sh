@@ -188,7 +188,7 @@ You will be given the PREVIOUS issue of the newspaper (if one exists). Use it to
 - **Staff consistency**: Try to keep the same reporters/bylines across issues. They are your recurring staff. If you change a reporter (retirement, promotion, fired, eaten by lions), mention it briefly in the front page or a letter.
 - **Corrections**: If the previous issue contained rumors or speculation that turned out wrong based on this turn's data, issue a correction. Be funny about it — "The Chronicle regrets to inform readers that our report of imminent war was, in fact, two shepherds arguing over a goat."
 - **Running threads**: Reference previous stories. If last issue mentioned a military buildup, follow up on it. If an alliance was formed, check if it held.
-- **Ads**: Include 1-2 small classified ads that are era-appropriate and funny. Think: "WANTED: Experienced scout. Must have own sandals. Apply at the western garrison." or "FOR SALE: Slightly used bronze tools. Previous owner no longer needs them (conscripted)." These should feel like real ads from the time period.
+- **Ads**: Include 1-2 small classified ads that are era-appropriate and funny. Plain text only, no HTML tags. Think: "WANTED: Experienced scout. Must have own sandals. Apply at the western garrison." or "FOR SALE: Slightly used bronze tools. Previous owner no longer needs them (conscripted)." These should feel like real ads from the time period.
 
 Return your response as JSON with this exact structure:
 {
