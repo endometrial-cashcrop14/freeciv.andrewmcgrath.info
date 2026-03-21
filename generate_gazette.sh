@@ -369,9 +369,10 @@ generate_illustration() {
     return 1
   fi
 
-  # Save image
+  # Save image to persistent storage and symlink to webroot
   local filename="gazette-${target_turn}.png"
-  echo "$image_data" | base64 -d > "$WEBROOT/$filename"
+  echo "$image_data" | base64 -d > "$SAVE_DIR/$filename"
+  ln -sf "$SAVE_DIR/$filename" "$WEBROOT/$filename"
   echo "[gazette] Saved illustration: $filename" >&2
   echo "$filename"
 }

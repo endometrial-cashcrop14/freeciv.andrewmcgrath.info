@@ -307,6 +307,11 @@ for f in status.json history.json attendance.json diplomacy.json gazette.json; d
   [ -f "$SAVE_DIR/$f" ] && ln -sf "$SAVE_DIR/$f" "$WEBROOT/$f"
 done
 
+# Symlink persisted gazette illustrations into webroot
+for f in "$SAVE_DIR"/gazette-*.png; do
+  [ -f "$f" ] && ln -sf "$f" "$WEBROOT/$(basename $f)"
+done
+
 # Process 4: HTTP server for status page
 busybox httpd -f -p 8080 -h /opt/freeciv/www &
 
