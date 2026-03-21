@@ -173,7 +173,7 @@ The newspaper has these sections:
 
 4. **Society** — 1-2 paragraphs on tech progress, cultural developments, the state of civilization. Include a fictional quote from one of the in-game player leaders on cultural or scientific matters.
 
-5. **Opinion Column** — A short opinion piece (2-3 paragraphs) written IN THE VOICE of a real famous historical figure, philosopher, or writer who was alive during the game's current era. This is CRITICAL — the person MUST be from the right time period. For 3500 BC, use figures like Hammurabi, Imhotep, or Gilgamesh — NOT Aristotle or Sun Tzu. You MUST faithfully reproduce their known writing style, rhetorical habits, and worldview. If Imhotep writes, it should read like his maxims. If Confucius writes, use his aphoristic style with analogy and moral instruction. If Machiavelli writes, it should be pragmatic, calculating, and blunt. Research what they actually believed and cared about — their known opinions on governance, war, morality, the common people — and let that shape their reaction to events. The column should feel like it could plausibly have been written by that person.
+5. **Opinion Column** — A short opinion piece (2-3 paragraphs) written IN THE VOICE of a real famous historical figure, philosopher, or writer who was alive during the game's current year. This is CRITICAL — the person MUST be from the right time. For 3500 BC, use figures like Imhotep or Gilgamesh. For 500 BC, Confucius or Sun Tzu. For 1500 AD, Machiavelli or Erasmus. For 1800 AD, Adam Smith or Marx. For 1950 AD, Orwell or Chomsky. You MUST faithfully reproduce their known writing style, rhetorical habits, and worldview. If Confucius writes, use his aphoristic style. If Machiavelli writes, be pragmatic and calculating. If Orwell writes, be clear-eyed and politically sharp. Research what they actually believed and let that shape their reaction to events. The column should feel like it could plausibly have been written by that person.
 
 6. **Letters to the Editor** — 2-3 short letters from fictional citizens (a farmer, a soldier, a merchant, a priest, etc.) reacting to events. These should be funny, opinionated, and feel like real people griping or celebrating. Keep each letter to 2-4 sentences.
 
@@ -188,33 +188,39 @@ You will be given the PREVIOUS issue of the newspaper (if one exists). Use it to
 - **Staff consistency**: Try to keep the same reporters/bylines across issues. They are your recurring staff. If you change a reporter (retirement, promotion, fired, eaten by lions), mention it briefly in the front page or a letter.
 - **Corrections**: If the previous issue contained rumors or speculation that turned out wrong based on this turn's data, issue a correction. Be funny about it — "The Chronicle regrets to inform readers that our report of imminent war was, in fact, two shepherds arguing over a goat."
 - **Running threads**: Reference previous stories. If last issue mentioned a military buildup, follow up on it. If an alliance was formed, check if it held.
-- **Ads**: Include 1-2 small classified ads that are era-appropriate and funny. Plain text only, no HTML tags. Think: "WANTED: Experienced scout. Must have own sandals. Apply at the western garrison." or "FOR SALE: Slightly used bronze tools. Previous owner no longer needs them (conscripted)." These should feel like real ads from the time period.
+- **Ads**: Include 1-2 small classified ads that are era-appropriate and funny. Plain text only, no HTML tags. These should feel like real ads from a newspaper of the current game year. Ancient: "WANTED: Experienced scout. Must have own sandals." Medieval: "FINE SWORDS, best Toledo steel, inquire at the guild hall." Modern: "DEFENSE CONTRACTOR seeks experienced logistics coordinator. Competitive salary. Security clearance required."
 
 Return your response as JSON with this exact structure:
 {
   "headline": "...",
   "sections": {
-    "front_page": {"byline": "By Khamudi, Chief Scribe", "content": "..."},
-    "economy": {"byline": "By Nefertari, Trade Correspondent", "content": "..."},
-    "military": {"byline": "By Enkidu, War Correspondent", "content": "..."},
-    "society": {"byline": "By Ptahhotep, Cultural Affairs", "content": "..."}
+    "front_page": {"byline": "era-appropriate reporter name and title", "content": "..."},
+    "economy": {"byline": "era-appropriate reporter name and title", "content": "..."},
+    "military": {"byline": "era-appropriate reporter name and title", "content": "..."},
+    "society": {"byline": "era-appropriate reporter name and title", "content": "..."}
   },
   "opinion": {
-    "author": "Imhotep",
-    "author_title": "Architect and vizier of the Two Lands",
-    "title": "On the Folly of Unguarded Borders",
+    "author": "a real historical figure alive at the game's current year",
+    "author_title": "their real title or description",
+    "title": "column title",
     "content": "..."
   },
   "letters": [
-    {"author": "A wheat farmer near the capital", "content": "..."},
-    {"author": "Anonymous spearman, northern garrison", "content": "..."}
+    {"author": "era-appropriate citizen role and name", "content": "..."},
+    {"author": "era-appropriate citizen role and name", "content": "..."}
   ],
   "ads": [
-    "WANTED: Experienced scout. Must have own sandals. Apply at the western garrison.",
-    "FOR SALE: Slightly used bronze spear. One careful owner. Reason for selling: promotion to archer."
+    "era-appropriate classified ad, plain text, no HTML",
+    "era-appropriate classified ad, plain text, no HTML"
   ],
-  "corrections": "The Chronicle regrets that last issue's report of... (or null if no corrections needed)"
+  "corrections": "correction text or null if none needed",
+  "illustration_caption": {
+    "credit": "full credit line as it would appear in a newspaper of this era, e.g. 'Carving by a temple artisan, Memphis' or 'Illustration by Albrecht Dürer' or 'Photograph by Dorothea Lange, AP'",
+    "description": "plain text description of what the image depicts"
+  }
 }
+
+The illustration_caption credit should read exactly the way a newspaper of this era would credit artwork. This is a newspaper from THAT day — not looking back at history. Do NOT use words like "period", "era", "ancient", or "unknown." Write it as a natural credit line: "Carving by a temple artisan, Memphis" or "Engraving by Albrecht Dürer" or "Photograph by Dorothea Lange, AP". The medium (carving, painting, engraving, photograph) should match the era. The description should be plain text (no HTML).
 
 All content fields should use simple HTML (<p>, <strong>, <em>) for formatting.
 SYSPROMPT
@@ -276,6 +282,101 @@ ${prev_issue}"
 }
 
 # ---------------------------------------------------------------------------
+# Generate a front-page illustration using Gemini image generation
+# ---------------------------------------------------------------------------
+generate_illustration() {
+  local headline="$1"
+  local year="$2"
+  local target_turn="$3"
+  local front_page_text="$4"
+  local art_credit="$5"
+  local illustration_desc="$6"
+
+  # API key: env var > .env file > file in save dir
+  local api_key="${GEMINI_API_KEY:-}"
+  if [ -z "$api_key" ] && [ -f "$SCRIPT_DIR/.env" ]; then
+    api_key=$(grep '^GEMINI_API_KEY=' "$SCRIPT_DIR/.env" | head -1 | sed 's/^GEMINI_API_KEY=//' | tr -d '[:space:]"'"'")
+  fi
+  if [ -z "$api_key" ] && [ -f "$SAVE_DIR/gemini_api_key" ]; then
+    api_key=$(cat "$SAVE_DIR/gemini_api_key" | tr -d '[:space:]')
+  fi
+  if [ -z "$api_key" ]; then
+    echo "[gazette] No Gemini API key found, skipping illustration" >&2
+    return 1
+  fi
+
+  # Pick art style based on era
+  local art_style
+  if [ "$year" -lt -1000 ] 2>/dev/null; then
+    art_style="ancient Mesopotamian/Egyptian stone relief carving style, carved into sandstone, hieroglyphic border elements"
+  elif [ "$year" -lt 500 ] 2>/dev/null; then
+    art_style="classical Greek/Roman mosaic or red-figure pottery style, terracotta and black tones"
+  elif [ "$year" -lt 1400 ] 2>/dev/null; then
+    art_style="medieval illuminated manuscript style, gold leaf accents, rich colors on parchment"
+  elif [ "$year" -lt 1800 ] 2>/dev/null; then
+    art_style="Renaissance woodcut engraving style, fine black ink crosshatching on cream paper"
+  else
+    art_style="vintage newspaper editorial illustration, pen and ink sketch style, crosshatched shading"
+  fi
+
+  # Strip HTML from front page text for the prompt
+  local clean_text
+  clean_text=$(echo "$front_page_text" | sed 's/<[^>]*>//g' | head -c 500)
+
+  # Add artist style if available
+  local artist_style=""
+  if [ -n "$art_credit" ]; then
+    artist_style="In the style described by: ${art_credit}. "
+  fi
+  local scene_desc="${clean_text}"
+  if [ -n "$illustration_desc" ]; then
+    scene_desc="Scene to depict: ${illustration_desc}. Context: ${clean_text}"
+  fi
+
+  local prompt="Generate a small newspaper illustration. ${artist_style}Style: ${art_style}. ${scene_desc}. No text or words in the image. Square format, detailed."
+
+  local request_body
+  request_body=$(jq -n \
+    --arg prompt "$prompt" \
+    '{
+      contents: [{
+        parts: [{text: $prompt}]
+      }],
+      generationConfig: {
+        responseModalities: ["Text", "Image"],
+        temperature: 0.8,
+        imageConfig: {
+          imageSize: "1K"
+        }
+      }
+    }')
+
+  echo "[gazette] Generating illustration for turn $target_turn..." >&2
+  local response
+  response=$(curl -s --max-time 60 \
+    -H "x-goog-api-key: $api_key" \
+    -H "Content-Type: application/json" \
+    -d "$request_body" \
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent")
+
+  # Extract base64 image data from response
+  local image_data
+  image_data=$(echo "$response" | jq -r '.candidates[0].content.parts[] | select(.inlineData) | .inlineData.data // empty' 2>/dev/null | head -1)
+
+  if [ -z "$image_data" ]; then
+    echo "[gazette] Gemini image generation failed for turn $target_turn" >&2
+    echo "$response" | jq -r '.error.message // empty' >&2 2>/dev/null
+    return 1
+  fi
+
+  # Save image
+  local filename="gazette-${target_turn}.png"
+  echo "$image_data" | base64 -d > "$WEBROOT/$filename"
+  echo "[gazette] Saved illustration: $filename" >&2
+  echo "$filename"
+}
+
+# ---------------------------------------------------------------------------
 # Process a single turn
 # ---------------------------------------------------------------------------
 process_turn() {
@@ -306,12 +407,21 @@ process_turn() {
   local year_display
   year_display=$(echo "$context" | jq -r '.year_display')
 
+  # Generate front-page illustration
+  local illustration=""
+  local headline fp_content ill_artist ill_desc
+  headline=$(echo "$entry" | jq -r '.headline')
+  fp_content=$(echo "$entry" | jq -r '.sections.front_page.content // .sections.front_page // ""')
+  ill_credit=$(echo "$entry" | jq -r '.illustration_caption.credit // ""')
+  ill_desc=$(echo "$entry" | jq -r '.illustration_caption.description // ""')
+  illustration=$(generate_illustration "$headline" "$year" "$target_turn" "$fp_content" "$ill_credit" "$ill_desc") || true
+
   # Remove existing entry for this turn if rebuilding
   GAZETTE_JSON=$(echo "$GAZETTE_JSON" | jq --argjson t "$target_turn" '[.[] | select(.turn != $t)]')
 
   # Add new entry
   GAZETTE_JSON=$(echo "$GAZETTE_JSON" | jq --argjson t "$target_turn" --argjson y "$year" \
-    --arg yd "$year_display" --argjson entry "$entry" \
+    --arg yd "$year_display" --argjson entry "$entry" --arg img "$illustration" \
     '. + [{
       turn: $t,
       year: $y,
@@ -321,7 +431,9 @@ process_turn() {
       opinion: $entry.opinion,
       letters: $entry.letters,
       ads: ($entry.ads // []),
-      corrections: ($entry.corrections // null)
+      corrections: ($entry.corrections // null),
+      illustration: (if $img != "" then $img else null end),
+      illustration_caption: ($entry.illustration_caption // null)
     }] | sort_by(.turn)')
 
   # Save after each entry
