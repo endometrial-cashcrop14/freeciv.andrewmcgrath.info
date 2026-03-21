@@ -141,18 +141,40 @@ if [ -f "$GAZETTE_JSON" ] && jq . "$GAZETTE_JSON" >/dev/null 2>&1; then
       GZ_OP_TITLE=$(echo "$GAZETTE_ENTRY" | jq -r '.opinion.title // empty')
       GZ_OP_CONTENT=$(echo "$GAZETTE_ENTRY" | jq -r '.opinion.content // empty')
       GZ_LETTERS=$(echo "$GAZETTE_ENTRY" | jq -r '.letters // [] | .[] | "<div style=\"margin-bottom:12px;padding-left:14px;border-left:2px solid #2a2a4a;\"><p style=\"font-size:13px;line-height:1.6;color:#b0bdd0;margin:0;\">" + .content + "</p><div style=\"font-size:11px;color:#537895;font-weight:600;margin-top:4px;\">&mdash; " + .author + "</div></div>"' 2>/dev/null)
+      GZ_ADS=$(echo "$GAZETTE_ENTRY" | jq -r '.ads // [] | .[] | "<div style=\"font-size:11px;color:#b0bdd0;text-align:center;padding:6px 12px;margin-bottom:6px;border:1px dashed #2a2a4a;\">" + gsub("<[^>]*>";"") + "</div>"' 2>/dev/null)
+      GZ_CORRECTIONS=$(echo "$GAZETTE_ENTRY" | jq -r '.corrections // empty')
+      GZ_TURN=$(echo "$GAZETTE_ENTRY" | jq -r '.turn // empty')
 
       SECTION_STYLE="margin-top:18px;padding-top:16px;border-top:1px solid #2a2a4a;"
       SECTION_TITLE_STYLE="color:#e94560;font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:4px;"
       BYLINE_STYLE="color:#537895;font-size:11px;font-style:italic;margin-bottom:10px;"
       BODY_STYLE="color:#b0bdd0;font-size:13px;line-height:1.7;"
+      ADS_TITLE_STYLE="color:#537895;font-size:9px;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:8px;text-align:center;"
+
+      # Build corrections block
+      GZ_CORRECTIONS_HTML=""
+      if [ -n "$GZ_CORRECTIONS" ] && [ "$GZ_CORRECTIONS" != "null" ]; then
+        GZ_CORRECTIONS_HTML="
+      <div style='${SECTION_STYLE}'>
+        <div style='color:#e94560;font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:6px;'>Corrections &amp; Retractions</div>
+        <div style='${BODY_STYLE}font-style:italic;'>${GZ_CORRECTIONS}</div>
+      </div>"
+      fi
+
+      # Build ads block
+      GZ_ADS_HTML=""
+      if [ -n "$GZ_ADS" ]; then
+        GZ_ADS_HTML="
+      <div style='${SECTION_STYLE}'>
+        <div style='${ADS_TITLE_STYLE}'>Classifieds</div>
+        ${GZ_ADS}
+      </div>"
+      fi
 
       GAZETTE_HTML="
     <div style='background:#111827;border:1px solid #2a2a4a;border-radius:8px;padding:20px 24px;margin:0 0 24px 0;'>
-      <div style='color:#e94560;font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:8px;'>The Civ Chronicle</div>
+      <div style='color:#e94560;font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:8px;'>The Civ Chronicle &middot; Turn ${GZ_TURN} &middot; ${GZ_YEAR}</div>
       <div style='color:#fff;font-size:17px;font-weight:800;line-height:1.3;margin-bottom:4px;'>${GZ_HEADLINE}</div>
-      <div style='color:#537895;font-size:11px;margin-bottom:14px;'>${GZ_YEAR}</div>
-      <div style='${SECTION_TITLE_STYLE}'>Front Page</div>
       <div style='${BYLINE_STYLE}'>${GZ_FRONT_BY}</div>
       <div style='${BODY_STYLE}'>${GZ_FRONT}</div>
       <div style='${SECTION_STYLE}'>
@@ -180,6 +202,8 @@ if [ -f "$GAZETTE_JSON" ] && jq . "$GAZETTE_JSON" >/dev/null 2>&1; then
         <div style='${SECTION_TITLE_STYLE}'>Letters to the Editor</div>
         ${GZ_LETTERS}
       </div>
+      ${GZ_CORRECTIONS_HTML}
+      ${GZ_ADS_HTML}
     </div>"
       echo "[turn_notify] Including gazette in email: $GZ_HEADLINE"
     elif [ -n "$GZ_HEADLINE" ]; then
