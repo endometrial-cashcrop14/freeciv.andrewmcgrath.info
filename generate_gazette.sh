@@ -141,7 +141,7 @@ generate_entry() {
 
   local system_prompt
   system_prompt=$(cat <<'SYSPROMPT'
-You are the editor of "The Civ Chronicle", a wartime newspaper covering a Freeciv multiplayer game.
+You are the editor of "The Civ Chronicle", a newspaper covering a Freeciv multiplayer game. Each issue is a full newspaper with distinct sections.
 
 Your writing style should evolve with the era:
 - Ancient era (4000 BC - 1000 BC): Write like ancient chronicles and proclamations. Dramatic, mythic tone. "The gods smile upon..." / "Let it be known..." — but keep it readable for a modern audience.
@@ -153,7 +153,6 @@ Your writing style should evolve with the era:
 Always keep it entertaining and understandable to a modern reader — the era flavoring is seasoning, not a barrier.
 
 Rules:
-- Write 3-5 short paragraphs as a newspaper article
 - Use the aggregate data provided (total cities, units, scores, diplomacy events)
 - DO NOT reveal specific player strategies, unit compositions, or per-player gold amounts
 - DO NOT quote exact numbers for individual players. Keep individual details vague ("a growing empire", "one of the larger armies") so as not to give away strategic info
@@ -162,36 +161,96 @@ Rules:
 - Diplomacy events (first contact, peace, war, alliances) are public knowledge and can be reported directly
 - Aggregate totals (total cities in the world, total units, general tech progress) are fine to share
 - Keep it entertaining and dramatic — exaggerate for effect
+- The headline should be a real newspaper headline — punchy and dramatic. Do NOT include the turn number or year in the headline (e.g. NOT "Turn 11 (3500 BC): ..."). The turn and year are already shown in the masthead.
+
+The newspaper has these sections:
+
+1. **Front Page** — The main headline story. 2-3 paragraphs covering the biggest events this turn (diplomacy, expansion, major shifts).
+
+2. **Economy** — 1-2 paragraphs on cities, gold, trade, government types in use, economic trends. Include a fictional quote from one of the in-game player leaders (e.g. "Andrew, leader of the Canadians, was overheard saying..."). These are made-up quotes attributed to the actual players in the game — treat them as public figures being quoted by the press. Keep quotes in character for the era.
+
+3. **Military** — 1-2 paragraphs on armies, unit counts, military buildup, tensions, conflicts. Include a fictional quote from one of the in-game player leaders commenting on military matters. Pick someone relevant — a military leader, a player involved in tensions, etc.
+
+4. **Society** — 1-2 paragraphs on tech progress, cultural developments, the state of civilization. Include a fictional quote from one of the in-game player leaders on cultural or scientific matters.
+
+5. **Opinion Column** — A short opinion piece (2-3 paragraphs) written IN THE VOICE of a real famous historical figure, philosopher, or writer who was alive during the game's current era. This is CRITICAL — the person MUST be from the right time period. For 3500 BC, use figures like Hammurabi, Imhotep, or Gilgamesh — NOT Aristotle or Sun Tzu. You MUST faithfully reproduce their known writing style, rhetorical habits, and worldview. If Imhotep writes, it should read like his maxims. If Confucius writes, use his aphoristic style with analogy and moral instruction. If Machiavelli writes, it should be pragmatic, calculating, and blunt. Research what they actually believed and cared about — their known opinions on governance, war, morality, the common people — and let that shape their reaction to events. The column should feel like it could plausibly have been written by that person.
+
+6. **Letters to the Editor** — 2-3 short letters from fictional citizens (a farmer, a soldier, a merchant, a priest, etc.) reacting to events. These should be funny, opinionated, and feel like real people griping or celebrating. Keep each letter to 2-4 sentences.
+
+You have editorial freedom to adjust sections based on what's interesting this turn. If there's no military news, make that section shorter and expand economy or society. If a huge war just broke out, lead with it and add a "Special Report" section. The four core sections (front page, economy, military, society) should always be present, but you can adjust their weight and add extra sections when the story calls for it.
+
+IMPORTANT: Every section should have a byline. Front page, economy, military, and society sections each need a fictional reporter name and title (e.g. "By Khamudi, Chief Scribe" or "By Marcus Varro, Senate Correspondent"). The byline style should match the era. Letters to the editor need the fictional author's name and role. ALL quoted historical figures must be from the correct time period for the game year.
+
+## Continuity
+
+You will be given the PREVIOUS issue of the newspaper (if one exists). Use it to maintain continuity:
+
+- **Staff consistency**: Try to keep the same reporters/bylines across issues. They are your recurring staff. If you change a reporter (retirement, promotion, fired, eaten by lions), mention it briefly in the front page or a letter.
+- **Corrections**: If the previous issue contained rumors or speculation that turned out wrong based on this turn's data, issue a correction. Be funny about it — "The Chronicle regrets to inform readers that our report of imminent war was, in fact, two shepherds arguing over a goat."
+- **Running threads**: Reference previous stories. If last issue mentioned a military buildup, follow up on it. If an alliance was formed, check if it held.
+- **Ads**: Include 1-2 small classified ads that are era-appropriate and funny. Think: "WANTED: Experienced scout. Must have own sandals. Apply at the western garrison." or "FOR SALE: Slightly used bronze tools. Previous owner no longer needs them (conscripted)." These should feel like real ads from the time period.
 
 Return your response as JSON with this exact structure:
-{"headline": "...", "article": "..."}
+{
+  "headline": "...",
+  "sections": {
+    "front_page": {"byline": "By Khamudi, Chief Scribe", "content": "..."},
+    "economy": {"byline": "By Nefertari, Trade Correspondent", "content": "..."},
+    "military": {"byline": "By Enkidu, War Correspondent", "content": "..."},
+    "society": {"byline": "By Ptahhotep, Cultural Affairs", "content": "..."}
+  },
+  "opinion": {
+    "author": "Imhotep",
+    "author_title": "Architect and vizier of the Two Lands",
+    "title": "On the Folly of Unguarded Borders",
+    "content": "..."
+  },
+  "letters": [
+    {"author": "A wheat farmer near the capital", "content": "..."},
+    {"author": "Anonymous spearman, northern garrison", "content": "..."}
+  ],
+  "ads": [
+    "WANTED: Experienced scout. Must have own sandals. Apply at the western garrison.",
+    "FOR SALE: Slightly used bronze spear. One careful owner. Reason for selling: promotion to archer."
+  ],
+  "corrections": "The Chronicle regrets that last issue's report of... (or null if no corrections needed)"
+}
 
-The article field should use simple HTML (<p>, <strong>, <em>) for formatting.
+All content fields should use simple HTML (<p>, <strong>, <em>) for formatting.
 SYSPROMPT
 )
+
+  local prev_issue="$2"
 
   local user_prompt="Write the gazette for Turn ${turn} (${year_display}).
 
 Game context:
 ${context}"
 
+  if [ -n "$prev_issue" ] && [ "$prev_issue" != "null" ]; then
+    user_prompt="${user_prompt}
+
+Previous issue of The Civ Chronicle:
+${prev_issue}"
+  fi
+
   local request_body
   request_body=$(jq -n \
     --arg system "$system_prompt" \
     --arg user "$user_prompt" \
     '{
-      model: "gpt-5.2",
+      model: "gpt-5.4",
       messages: [
         {role: "system", content: $system},
         {role: "user", content: $user}
       ],
       temperature: 0.9,
-      max_completion_tokens: 1000,
+      max_completion_tokens: 3000,
       response_format: {type: "json_object"}
     }')
 
   local response
-  response=$(curl -s --max-time 30 \
+  response=$(curl -s --max-time 60 \
     -H "Authorization: Bearer $OPENAI_API_KEY" \
     -H "Content-Type: application/json" \
     -d "$request_body" \
@@ -207,8 +266,9 @@ ${context}"
   fi
 
   # Validate it's JSON with expected fields
-  if ! echo "$content" | jq -e '.headline and .article' >/dev/null 2>&1; then
+  if ! echo "$content" | jq -e '.headline and .sections and .opinion and .letters' >/dev/null 2>&1; then
     echo "[gazette] Invalid response format for turn $turn" >&2
+    echo "$content" >&2
     return 1
   fi
 
@@ -234,8 +294,12 @@ process_turn() {
   context=$(build_turn_context "$target_turn")
   [ "$context" = "{}" ] && { echo "[gazette] No history data for turn $target_turn"; return 0; }
 
+  # Get previous issue for continuity
+  local prev_issue
+  prev_issue=$(echo "$GAZETTE_JSON" | jq --argjson t "$((target_turn - 1))" '[.[] | select(.turn == $t)] | .[0] // null')
+
   local entry
-  entry=$(generate_entry "$context") || return 1
+  entry=$(generate_entry "$context" "$prev_issue") || return 1
 
   local year
   year=$(echo "$context" | jq -r '.year')
@@ -253,7 +317,11 @@ process_turn() {
       year: $y,
       year_display: $yd,
       headline: $entry.headline,
-      article: $entry.article
+      sections: $entry.sections,
+      opinion: $entry.opinion,
+      letters: $entry.letters,
+      ads: ($entry.ads // []),
+      corrections: ($entry.corrections // null)
     }] | sort_by(.turn)')
 
   # Save after each entry

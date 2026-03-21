@@ -112,15 +112,49 @@
     .hl-nav button:hover { border-color:var(--text-dim); color:var(--text-bright); }
     .hl-nav button:disabled { opacity:0.3; cursor:default; }
     .hl-nav button:disabled:hover { border-color:var(--border); color:var(--text); }
-    .gazette { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:28px 32px; }
-    .gazette-headline { font-size:20px; font-weight:900; color:var(--text-bright); line-height:1.3; margin-bottom:6px; letter-spacing:-0.3px; }
-    .gazette-byline { font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:20px; font-weight:600; }
-    .gazette-body p { margin-bottom:14px; font-size:14px; line-height:1.75; color:var(--text); }
+    .gazette { background:#f5f0e6; border:none; border-radius:0; padding:0; color:#1a1a1a; font-family:'Georgia','Times New Roman',serif; }
+    .gazette-masthead { text-align:center; padding:24px 32px 16px; border-bottom:4px double #1a1a1a; }
+    .gazette-masthead-name { font-size:42px; font-weight:900; color:#1a1a1a; letter-spacing:2px; font-family:'Georgia',serif; line-height:1; }
+    .gazette-masthead-sub { font-size:11px; color:#666; text-transform:uppercase; letter-spacing:4px; margin-top:6px; }
+    .gazette-masthead-rule { border:none; border-top:1px solid #1a1a1a; margin:12px 0 0; }
+    .gazette-masthead-meta { display:flex; justify-content:space-between; font-size:10px; color:#666; text-transform:uppercase; letter-spacing:1px; padding:6px 0; border-bottom:1px solid #ccc; }
+    .gazette-headline { font-size:28px; font-weight:900; color:#1a1a1a; line-height:1.2; margin:0; letter-spacing:-0.5px; font-family:'Georgia',serif; text-align:center; padding:20px 32px 6px; }
+    .gazette-headline-byline { font-size:11px; color:#666; text-align:center; font-style:italic; padding:0 32px 16px; border-bottom:1px solid #ccc; }
+    .gazette-cols { display:grid; grid-template-columns:1fr 1fr; gap:0; padding:0; }
+    .gazette-col { padding:16px 20px; border-right:1px solid #ccc; }
+    .gazette-col:last-child { border-right:none; }
+    .gazette-col-title { font-size:11px; text-transform:uppercase; letter-spacing:2px; font-weight:700; color:#1a1a1a; border-bottom:2px solid #1a1a1a; padding-bottom:4px; margin-bottom:4px; }
+    .gazette-col-byline { font-size:10px; color:#888; font-style:italic; margin-bottom:10px; }
+    .gazette-body p { margin-bottom:10px; font-size:13px; line-height:1.7; color:#2a2a2a; text-align:justify; }
     .gazette-body p:last-child { margin-bottom:0; }
-    .gazette-body strong { color:var(--text-bright); }
-    .gazette-body em { color:var(--amber); font-style:italic; }
-    .gazette-disclaimer { margin-top:16px; padding-top:12px; border-top:1px solid var(--border); font-size:10px; color:var(--text-dim); font-style:italic; text-align:center; }
-    @media(max-width:600px) { .gazette { padding:20px 16px; } .gazette-headline { font-size:17px; } }
+    .gazette-body strong { color:#1a1a1a; }
+    .gazette-body em { font-style:italic; }
+    .gazette-opinion { padding:16px 20px; border-top:2px solid #1a1a1a; background:#ede8d8; }
+    .gazette-opinion-label { font-size:11px; text-transform:uppercase; letter-spacing:2px; font-weight:700; color:#1a1a1a; border-bottom:1px solid #1a1a1a; padding-bottom:4px; margin-bottom:10px; }
+    .gazette-opinion-col-title { font-size:16px; font-weight:800; color:#1a1a1a; line-height:1.3; margin-bottom:2px; font-family:'Georgia',serif; }
+    .gazette-opinion-author { font-size:12px; font-weight:700; color:#1a1a1a; }
+    .gazette-opinion-title-line { font-size:10px; color:#888; font-style:italic; margin-bottom:10px; }
+    .gazette-letters { padding:16px 20px; border-top:1px solid #ccc; }
+    .gazette-letters-title { font-size:11px; text-transform:uppercase; letter-spacing:2px; font-weight:700; color:#1a1a1a; border-bottom:1px solid #1a1a1a; padding-bottom:4px; margin-bottom:12px; }
+    .gazette-letter { margin-bottom:12px; }
+    .gazette-letter p { font-size:12px; line-height:1.6; color:#2a2a2a; margin:0; font-style:italic; }
+    .gazette-letter-author { font-size:10px; color:#666; font-weight:600; margin-top:2px; text-align:right; }
+    .gazette-standings { padding:16px 20px; border-top:2px solid #1a1a1a; }
+    .gazette-standings-title { font-size:11px; text-transform:uppercase; letter-spacing:2px; font-weight:700; color:#1a1a1a; border-bottom:1px solid #1a1a1a; padding-bottom:4px; margin-bottom:10px; }
+    .gazette-standings table { width:100%; border-collapse:collapse; font-size:11px; }
+    .gazette-standings th { text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:1px; color:#888; padding:4px 6px; border-bottom:1px solid #ccc; }
+    .gazette-standings td { padding:3px 6px; color:#2a2a2a; border-bottom:1px solid #e5e0d5; }
+    .gazette-standings tr:last-child td { border-bottom:none; }
+    .gazette-standings .rank { font-weight:700; color:#1a1a1a; }
+    .gazette-corrections { padding:12px 20px; border-top:1px solid #ccc; background:#f0ebe0; }
+    .gazette-corrections-title { font-size:10px; text-transform:uppercase; letter-spacing:2px; font-weight:700; color:#8b0000; margin-bottom:6px; }
+    .gazette-corrections p { font-size:12px; line-height:1.6; color:#2a2a2a; margin:0; font-style:italic; }
+    .gazette-ads { padding:14px 20px; border-top:1px solid #ccc; }
+    .gazette-ads-title { font-size:9px; text-transform:uppercase; letter-spacing:2px; font-weight:700; color:#888; margin-bottom:8px; text-align:center; }
+    .gazette-ad { font-size:11px; line-height:1.5; color:#444; text-align:center; padding:6px 12px; margin-bottom:6px; border:1px dashed #ccc; background:#f8f4ea; }
+    .gazette-ad:last-child { margin-bottom:0; }
+    .gazette-footer { text-align:center; padding:10px; border-top:4px double #1a1a1a; font-size:9px; color:#888; text-transform:uppercase; letter-spacing:2px; }
+    @media(max-width:600px) { .gazette-cols { grid-template-columns:1fr; } .gazette-col { border-right:none; border-bottom:1px solid #ccc; } .gazette-masthead-name { font-size:28px; } .gazette-headline { font-size:20px; padding:16px 16px 6px; } .gazette-headline-byline { padding:0 16px 12px; } .gazette-col { padding:12px 16px; } .gazette-opinion { padding:12px 16px; } .gazette-letters { padding:12px 16px; } .gazette-standings { padding:12px 16px; } .gazette { padding:0; } }
     .hl-nav .hl-label { color:var(--text-dim); font-size:13px; flex:1; text-align:center; }
     .hl-item { display:flex; align-items:flex-start; gap:10px; padding:8px 0; font-size:13px; line-height:1.5; }
     .hl-item + .hl-item { border-top:1px solid rgba(37,45,66,0.3); }
@@ -621,6 +655,117 @@
 
     var g = entries[gazetteTurn];
 
+    var bodyHtml = '';
+
+    // New format with sections
+    if (g.sections) {
+      var fp = g.sections.front_page || {};
+      var fpContent = typeof fp === 'string' ? fp : fp.content || '';
+      var fpByline = fp.byline || '';
+
+      // Front page as lead story under headline
+      bodyHtml += '<div class="gazette-headline">' + esc(g.headline) + '</div>' +
+        '<div class="gazette-headline-byline">' + esc(fpByline) + '</div>' +
+        '<div style="padding:0 20px 8px;"><div class="gazette-body">' + fpContent + '</div></div>';
+
+      // Two-column grid: Economy + Military
+      var econ = g.sections.economy || {};
+      var mil = g.sections.military || {};
+      bodyHtml += '<div class="gazette-cols">' +
+        '<div class="gazette-col">' +
+          '<div class="gazette-col-title">Economy</div>' +
+          '<div class="gazette-col-byline">' + esc(typeof econ === 'string' ? '' : econ.byline || '') + '</div>' +
+          '<div class="gazette-body">' + (typeof econ === 'string' ? econ : econ.content || '') + '</div>' +
+        '</div>' +
+        '<div class="gazette-col">' +
+          '<div class="gazette-col-title">Military</div>' +
+          '<div class="gazette-col-byline">' + esc(typeof mil === 'string' ? '' : mil.byline || '') + '</div>' +
+          '<div class="gazette-body">' + (typeof mil === 'string' ? mil : mil.content || '') + '</div>' +
+        '</div>' +
+      '</div>';
+
+      // Two-column grid: Society + Rankings
+      var soc = g.sections.society || {};
+      var rankingsHtml = '';
+      if (d.players && d.players.length) {
+        var sorted = d.players.slice().sort(function(a,b) { return (b.score||0) - (a.score||0); });
+        rankingsHtml = '<table>';
+        rankingsHtml += '<tr><th>#</th><th>Nation</th><th>Score</th><th>Cities</th><th>Units</th></tr>';
+        sorted.forEach(function(p, i) {
+          rankingsHtml += '<tr><td class="rank">' + (i+1) + '</td><td>' + esc(p.name) + '</td><td>' + (p.score||0) + '</td><td>' + (p.cities||0) + '</td><td>' + (p.units||0) + '</td></tr>';
+        });
+        rankingsHtml += '</table>';
+      }
+
+      bodyHtml += '<div class="gazette-cols">' +
+        '<div class="gazette-col">' +
+          '<div class="gazette-col-title">Society</div>' +
+          '<div class="gazette-col-byline">' + esc(typeof soc === 'string' ? '' : soc.byline || '') + '</div>' +
+          '<div class="gazette-body">' + (typeof soc === 'string' ? soc : soc.content || '') + '</div>' +
+        '</div>' +
+        '<div class="gazette-col">' +
+          '<div class="gazette-standings">' +
+            '<div class="gazette-standings-title">Standings</div>' +
+            rankingsHtml +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+      // Opinion column — full width
+      if (g.opinion) {
+        bodyHtml += '<div class="gazette-opinion">' +
+          '<div class="gazette-opinion-label">Opinion</div>' +
+          '<div class="gazette-opinion-col-title">' + esc(g.opinion.title) + '</div>' +
+          '<div class="gazette-opinion-title-line">' +
+            '<span class="gazette-opinion-author">' + esc(g.opinion.author) + '</span>' +
+            (g.opinion.author_title ? ' &mdash; ' + esc(g.opinion.author_title) : '') +
+          '</div>' +
+          '<div class="gazette-body">' + g.opinion.content + '</div>' +
+          '</div>';
+      }
+
+      // Letters to the editor
+      if (g.letters && g.letters.length) {
+        bodyHtml += '<div class="gazette-letters">' +
+          '<div class="gazette-letters-title">Letters to the Editor</div>';
+        g.letters.forEach(function(letter) {
+          bodyHtml += '<div class="gazette-letter">' +
+            '<p>' + letter.content + '</p>' +
+            '<div class="gazette-letter-author">&mdash; ' + esc(letter.author) + '</div>' +
+            '</div>';
+        });
+        bodyHtml += '</div>';
+      }
+
+      // Corrections
+      if (g.corrections && g.corrections !== 'null') {
+        bodyHtml += '<div class="gazette-corrections">' +
+          '<div class="gazette-corrections-title">Corrections &amp; Retractions</div>' +
+          '<p>' + g.corrections + '</p>' +
+          '</div>';
+      }
+
+      // Classifieds / Ads
+      if (g.ads && g.ads.length) {
+        bodyHtml += '<div class="gazette-ads">' +
+          '<div class="gazette-ads-title">Classifieds</div>';
+        g.ads.forEach(function(ad) {
+          bodyHtml += '<div class="gazette-ad">' + esc(ad) + '</div>';
+        });
+        bodyHtml += '</div>';
+      }
+
+      // Newspaper footer
+      bodyHtml += '<div class="gazette-footer">The Civ Chronicle &mdash; All the civilization that\'s fit to print</div>';
+
+    } else if (g.article) {
+      // Old format fallback
+      bodyHtml = '<div style="padding:20px 32px;"><div class="gazette-headline" style="text-align:left;padding:0;margin-bottom:6px;">' + esc(g.headline) + '</div>' +
+        '<div style="font-size:11px;color:#888;font-style:italic;margin-bottom:16px;">The Civ Chronicle &middot; Turn ' + g.turn + ' &middot; ' + esc(g.year_display) + '</div>' +
+        '<div class="gazette-body">' + g.article + '</div></div>';
+    }
+
+    // Build masthead + nav + body
     sec.innerHTML = '<section id="gazette"><div class="section-head"><h2>The Civ Chronicle</h2><div class="line"></div></div>' +
       '<div class="hl-nav">' +
       '<button id="gz-prev" ' + (gazetteTurn <= 0 ? 'disabled' : '') + '>&larr;</button>' +
@@ -628,9 +773,13 @@
       '<button id="gz-next" ' + (gazetteTurn >= entries.length - 1 ? 'disabled' : '') + '>&rarr;</button>' +
       '</div>' +
       '<div class="gazette">' +
-      '<div class="gazette-headline">' + esc(g.headline) + '</div>' +
-      '<div class="gazette-byline">The Civ Chronicle &middot; Turn ' + g.turn + ' &middot; ' + esc(g.year_display) + '</div>' +
-      '<div class="gazette-body">' + g.article + '</div>' +
+        '<div class="gazette-masthead">' +
+          '<div class="gazette-masthead-name">The Civ Chronicle</div>' +
+          '<div class="gazette-masthead-sub">All the civilization that\'s fit to print</div>' +
+          '<hr class="gazette-masthead-rule">' +
+          '<div class="gazette-masthead-meta"><span>Turn ' + g.turn + '</span><span>' + esc(g.year_display) + '</span><span>Vol. I, No. ' + g.turn + '</span></div>' +
+        '</div>' +
+        bodyHtml +
       '</div></section>';
 
     document.getElementById('gz-prev').addEventListener('click', function() {

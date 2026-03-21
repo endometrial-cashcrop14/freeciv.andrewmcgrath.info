@@ -123,17 +123,78 @@ if [ -f "$GAZETTE_JSON" ] && jq . "$GAZETTE_JSON" >/dev/null 2>&1; then
   GAZETTE_ENTRY=$(jq -r '.[-1] // empty' "$GAZETTE_JSON")
   if [ -n "$GAZETTE_ENTRY" ]; then
     GZ_HEADLINE=$(echo "$GAZETTE_ENTRY" | jq -r '.headline // empty')
-    GZ_ARTICLE=$(echo "$GAZETTE_ENTRY" | jq -r '.article // empty')
     GZ_YEAR=$(echo "$GAZETTE_ENTRY" | jq -r '.year_display // empty')
-    if [ -n "$GZ_HEADLINE" ] && [ -n "$GZ_ARTICLE" ]; then
+    GZ_HAS_SECTIONS=$(echo "$GAZETTE_ENTRY" | jq -r 'if .sections then "yes" else "no" end')
+
+    if [ -n "$GZ_HEADLINE" ] && [ "$GZ_HAS_SECTIONS" = "yes" ]; then
+      # New multi-section format
+      GZ_FRONT=$(echo "$GAZETTE_ENTRY" | jq -r '.sections.front_page.content // .sections.front_page // empty')
+      GZ_FRONT_BY=$(echo "$GAZETTE_ENTRY" | jq -r '.sections.front_page.byline // empty')
+      GZ_ECON=$(echo "$GAZETTE_ENTRY" | jq -r '.sections.economy.content // .sections.economy // empty')
+      GZ_ECON_BY=$(echo "$GAZETTE_ENTRY" | jq -r '.sections.economy.byline // empty')
+      GZ_MIL=$(echo "$GAZETTE_ENTRY" | jq -r '.sections.military.content // .sections.military // empty')
+      GZ_MIL_BY=$(echo "$GAZETTE_ENTRY" | jq -r '.sections.military.byline // empty')
+      GZ_SOC=$(echo "$GAZETTE_ENTRY" | jq -r '.sections.society.content // .sections.society // empty')
+      GZ_SOC_BY=$(echo "$GAZETTE_ENTRY" | jq -r '.sections.society.byline // empty')
+      GZ_OP_AUTHOR=$(echo "$GAZETTE_ENTRY" | jq -r '.opinion.author // empty')
+      GZ_OP_TITLE_LINE=$(echo "$GAZETTE_ENTRY" | jq -r '.opinion.author_title // empty')
+      GZ_OP_TITLE=$(echo "$GAZETTE_ENTRY" | jq -r '.opinion.title // empty')
+      GZ_OP_CONTENT=$(echo "$GAZETTE_ENTRY" | jq -r '.opinion.content // empty')
+      GZ_LETTERS=$(echo "$GAZETTE_ENTRY" | jq -r '.letters // [] | .[] | "<div style=\"margin-bottom:12px;padding-left:14px;border-left:2px solid #2a2a4a;\"><p style=\"font-size:13px;line-height:1.6;color:#b0bdd0;margin:0;\">" + .content + "</p><div style=\"font-size:11px;color:#537895;font-weight:600;margin-top:4px;\">&mdash; " + .author + "</div></div>"' 2>/dev/null)
+
+      SECTION_STYLE="margin-top:18px;padding-top:16px;border-top:1px solid #2a2a4a;"
+      SECTION_TITLE_STYLE="color:#e94560;font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:4px;"
+      BYLINE_STYLE="color:#537895;font-size:11px;font-style:italic;margin-bottom:10px;"
+      BODY_STYLE="color:#b0bdd0;font-size:13px;line-height:1.7;"
+
       GAZETTE_HTML="
+    <div style='background:#111827;border:1px solid #2a2a4a;border-radius:8px;padding:20px 24px;margin:0 0 24px 0;'>
+      <div style='color:#e94560;font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:8px;'>The Civ Chronicle</div>
+      <div style='color:#fff;font-size:17px;font-weight:800;line-height:1.3;margin-bottom:4px;'>${GZ_HEADLINE}</div>
+      <div style='color:#537895;font-size:11px;margin-bottom:14px;'>${GZ_YEAR}</div>
+      <div style='${SECTION_TITLE_STYLE}'>Front Page</div>
+      <div style='${BYLINE_STYLE}'>${GZ_FRONT_BY}</div>
+      <div style='${BODY_STYLE}'>${GZ_FRONT}</div>
+      <div style='${SECTION_STYLE}'>
+        <div style='${SECTION_TITLE_STYLE}'>Economy</div>
+        <div style='${BYLINE_STYLE}'>${GZ_ECON_BY}</div>
+        <div style='${BODY_STYLE}'>${GZ_ECON}</div>
+      </div>
+      <div style='${SECTION_STYLE}'>
+        <div style='${SECTION_TITLE_STYLE}'>Military</div>
+        <div style='${BYLINE_STYLE}'>${GZ_MIL_BY}</div>
+        <div style='${BODY_STYLE}'>${GZ_MIL}</div>
+      </div>
+      <div style='${SECTION_STYLE}'>
+        <div style='${SECTION_TITLE_STYLE}'>Society</div>
+        <div style='${BYLINE_STYLE}'>${GZ_SOC_BY}</div>
+        <div style='${BODY_STYLE}'>${GZ_SOC}</div>
+      </div>
+      <div style='${SECTION_STYLE}background:#0d1117;border-radius:6px;padding:16px 18px;border-left:3px solid #e94560;margin-top:18px;'>
+        <div style='${SECTION_TITLE_STYLE}'>Opinion</div>
+        <div style='color:#fff;font-size:14px;font-weight:800;margin-bottom:2px;'>${GZ_OP_TITLE}</div>
+        <div style='${BYLINE_STYLE}'><strong style='color:#e4eaf2;'>${GZ_OP_AUTHOR}</strong> &mdash; ${GZ_OP_TITLE_LINE}</div>
+        <div style='${BODY_STYLE}'>${GZ_OP_CONTENT}</div>
+      </div>
+      <div style='${SECTION_STYLE}'>
+        <div style='${SECTION_TITLE_STYLE}'>Letters to the Editor</div>
+        ${GZ_LETTERS}
+      </div>
+    </div>"
+      echo "[turn_notify] Including gazette in email: $GZ_HEADLINE"
+    elif [ -n "$GZ_HEADLINE" ]; then
+      # Old single-article format fallback
+      GZ_ARTICLE=$(echo "$GAZETTE_ENTRY" | jq -r '.article // empty')
+      if [ -n "$GZ_ARTICLE" ]; then
+        GAZETTE_HTML="
     <div style='background:#111827;border:1px solid #2a2a4a;border-radius:8px;padding:20px 24px;margin:0 0 24px 0;'>
       <div style='color:#e94560;font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:8px;'>The Civ Chronicle</div>
       <div style='color:#fff;font-size:17px;font-weight:800;line-height:1.3;margin-bottom:4px;'>${GZ_HEADLINE}</div>
       <div style='color:#537895;font-size:11px;margin-bottom:14px;'>${GZ_YEAR}</div>
       <div style='color:#b0bdd0;font-size:13px;line-height:1.7;'>${GZ_ARTICLE}</div>
     </div>"
-      echo "[turn_notify] Including gazette in email: $GZ_HEADLINE"
+        echo "[turn_notify] Including gazette in email: $GZ_HEADLINE"
+      fi
     fi
   fi
 fi
