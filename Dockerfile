@@ -83,6 +83,7 @@ COPY generate_nations.sh /opt/freeciv/generate_nations.sh
 COPY www/index.html /opt/freeciv/www/index.html
 COPY www/changelog.html /opt/freeciv/www/changelog.html
 COPY www/editor.html /opt/freeciv/www/editor.html
+COPY www/admin.html /opt/freeciv/www/admin.html
 COPY respond_to_editor.sh /opt/freeciv/respond_to_editor.sh
 COPY www/cgi-bin/ /opt/freeciv/www/cgi-bin/
 COPY crontab /etc/crontabs/freeciv

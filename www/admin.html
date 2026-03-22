@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor Admin — The Civ Chronicle</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#1a1a1a; font-family:'Georgia','Times New Roman',serif; color:#1a1a1a; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:20px; }
+    .admin-page { max-width:700px; width:100%; background:#f5f0e6; border:1px solid #d5d0c5; overflow:hidden; }
+    .admin-masthead { text-align:center; padding:20px 24px 14px; border-bottom:3px double #1a1a1a; }
+    .admin-masthead h1 { font-size:24px; font-weight:900; letter-spacing:1px; }
+    .admin-masthead .sub { font-size:10px; color:#888; text-transform:uppercase; letter-spacing:3px; margin-top:4px; }
+    .back-link { display:block; text-align:center; margin-top:14px; }
+    .back-link a { font-size:11px; color:#537895; text-decoration:none; font-family:-apple-system,sans-serif; }
+    .back-link a:hover { text-decoration:underline; }
+
+    /* Login */
+    .admin-login { padding:30px 24px; text-align:center; }
+    .admin-login p { font-size:13px; color:#444; margin-bottom:16px; }
+    .admin-login input { font-family:'Georgia',serif; font-size:14px; padding:10px 14px; border:1px solid #ccc; background:#fff; color:#1a1a1a; width:200px; display:block; margin:8px auto; border-radius:0; }
+    .admin-login button { font-family:'Georgia',serif; font-size:14px; padding:10px 28px; border:1px solid #1a1a1a; background:#1a1a1a; color:#f5f0e6; cursor:pointer; margin-top:8px; }
+    .admin-login button:hover { background:#333; }
+    .admin-error { color:#8b0000; font-size:12px; margin-top:10px; min-height:18px; }
+
+    /* Player list */
+    .player-list { padding:16px 20px; }
+    .player-item { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #d5d0c5; cursor:pointer; }
+    .player-item:hover { background:#ede8d8; }
+    .player-item:last-child { border-bottom:none; }
+    .player-name { font-size:15px; font-weight:700; }
+    .player-meta { font-size:11px; color:#888; }
+    .player-meta span { margin-left:10px; }
+
+    /* Conversation view */
+    .conv-header { padding:14px 20px; border-bottom:2px solid #1a1a1a; display:flex; align-items:center; gap:12px; }
+    .conv-back { font-size:20px; cursor:pointer; color:#1a1a1a; text-decoration:none; }
+    .conv-title { font-size:16px; font-weight:700; }
+    .conv-messages { padding:16px 20px; max-height:600px; overflow-y:auto; }
+    .conv-msg { margin-bottom:14px; max-width:85%; }
+    .conv-msg-player { margin-left:auto; text-align:right; }
+    .conv-msg-editor { margin-right:auto; }
+    .conv-msg-label { font-size:9px; text-transform:uppercase; letter-spacing:1px; color:#888; margin-bottom:3px; }
+    .conv-msg-bubble { font-size:13px; line-height:1.6; padding:10px 14px; border-radius:2px; }
+    .conv-msg-player .conv-msg-bubble { background:#ede8d8; border:1px solid #d5d0c5; }
+    .conv-msg-editor .conv-msg-bubble { background:#fff; border:1px solid #ccc; font-style:italic; }
+    .conv-msg-time { font-size:9px; color:#aaa; margin-top:3px; }
+    .conv-msg-bubble p { margin:0 0 8px; } .conv-msg-bubble p:last-child { margin:0; }
+
+    .admin-footer { text-align:center; padding:10px; border-top:3px double #1a1a1a; font-size:9px; color:#888; text-transform:uppercase; letter-spacing:2px; }
+    .empty { font-size:13px; color:#888; text-align:center; padding:40px 20px; font-style:italic; }
+    .admin-bar { font-size:10px; color:#888; text-align:center; padding:8px; border-top:1px solid #e5e0d5; font-style:italic; }
+    .admin-bar a { color:#888; cursor:pointer; text-decoration:underline; }
+
+    @media(max-width:560px) { .admin-page { border:none; } body { padding:0; } }
+  </style>
+</head>
+<body>
+
+<div class="admin-page">
+  <div class="admin-masthead">
+    <h1>The Civ Chronicle</h1>
+    <div class="sub">Editor's Desk — Admin View</div>
+  </div>
+  <div id="admin-content"></div>
+  <div class="admin-footer">Confidential — Editor's eyes only</div>
+</div>
+<div class="back-link"><a href="/">&larr; Back to game status</a></div>
+
+<script>
+var token = sessionStorage.getItem('editorToken');
+var player = sessionStorage.getItem('editorPlayer');
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function init() {
+  if (token) { loadPlayerList(); } else { showLogin(); }
+}
+
+function showLogin() {
+  document.getElementById('admin-content').innerHTML =
+    '<div class="admin-login">' +
+    '<p>Sign in with your admin credentials.</p>' +
+    '<input type="text" id="admin-user" placeholder="Username" autocapitalize="none">' +
+    '<input type="password" id="admin-pass" placeholder="Password">' +
+    '<button id="admin-login-btn">Sign In</button>' +
+    '<div class="admin-error" id="admin-error"></div></div>';
+  document.getElementById('admin-login-btn').addEventListener('click', doLogin);
+  document.getElementById('admin-pass').addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
+}
+
+function doLogin() {
+  var user = document.getElementById('admin-user').value.trim();
+  var pass = document.getElementById('admin-pass').value;
+  var err = document.getElementById('admin-error');
+  if (!user || !pass) { err.textContent = 'Enter credentials'; return; }
+  err.textContent = 'Signing in...';
+  fetch('/cgi-bin/editor-login', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username: user, password: pass})
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) {
+      token = d.token; player = d.player;
+      sessionStorage.setItem('editorToken', d.token);
+      sessionStorage.setItem('editorPlayer', d.player);
+      loadPlayerList();
+    } else { err.textContent = d.error || 'Login failed'; }
+  }).catch(function() { err.textContent = 'Connection error'; });
+}
+
+function loadPlayerList() {
+  fetch('/cgi-bin/editor-admin?token=' + token)
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.ok) {
+      if (d.error && d.error.indexOf('admin') >= 0) {
+        document.getElementById('admin-content').innerHTML =
+          '<div class="empty">Access denied. Your account is not an admin.</div>' +
+          '<div class="admin-bar"><a id="logout-link">Sign out</a></div>';
+        document.getElementById('logout-link').addEventListener('click', doLogout);
+      } else {
+        token = null; sessionStorage.removeItem('editorToken'); showLogin();
+      }
+      return;
+    }
+    var html = '<div class="admin-bar">Signed in as ' + esc(player) + ' &middot; <a id="logout-link">Sign out</a></div>';
+    html += '<div class="player-list">';
+    if (!d.players || !d.players.length) {
+      html += '<div class="empty">No conversations yet.</div>';
+    } else {
+      d.players.forEach(function(p) {
+        var dt = new Date(p.last_activity * 1000);
+        var timeStr = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        html += '<div class="player-item" data-player="' + esc(p.player_name) + '">' +
+          '<div><div class="player-name">' + esc(p.player_name) + '</div>' +
+          '<div class="player-meta">' + p.player_msgs + ' from player, ' + p.editor_msgs + ' from editor</div></div>' +
+          '<div class="player-meta">Last: ' + timeStr + '</div></div>';
+      });
+    }
+    html += '</div>';
+    document.getElementById('admin-content').innerHTML = html;
+    document.getElementById('logout-link').addEventListener('click', doLogout);
+    document.querySelectorAll('.player-item').forEach(function(el) {
+      el.addEventListener('click', function() { loadConversation(el.dataset.player); });
+    });
+  }).catch(function() { token = null; showLogin(); });
+}
+
+function loadConversation(playerName) {
+  fetch('/cgi-bin/editor-admin?token=' + token + '&player=' + encodeURIComponent(playerName))
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.ok) return;
+    var html = '<div class="conv-header"><a class="conv-back" id="conv-back">&larr;</a><div class="conv-title">' + esc(playerName) + '</div></div>';
+    html += '<div class="conv-messages">';
+    if (!d.messages || !d.messages.length) {
+      html += '<div class="empty">No messages.</div>';
+    } else {
+      d.messages.forEach(function(m) {
+        var isP = m.role === 'player';
+        var cls = isP ? 'conv-msg-player' : 'conv-msg-editor';
+        var label = isP ? esc(playerName) : 'The Editor';
+        var dt = new Date(m.created_at * 1000);
+        var ts = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        html += '<div class="conv-msg ' + cls + '"><div class="conv-msg-label">' + label + '</div><div class="conv-msg-bubble"></div><div class="conv-msg-time">' + ts + '</div></div>';
+      });
+    }
+    html += '</div>';
+    document.getElementById('admin-content').innerHTML = html;
+    document.getElementById('conv-back').addEventListener('click', loadPlayerList);
+    // Set content safely
+    if (d.messages) {
+      var bubbles = document.querySelectorAll('.conv-msg-bubble');
+      d.messages.forEach(function(m, i) {
+        if (m.role === 'player') { bubbles[i].textContent = m.content; }
+        else {
+          var h = m.content
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+            .replace(/\n\n/g, '</p><p>')
+            .replace(/\n/g, '<br>');
+          bubbles[i].innerHTML = '<p>' + h + '</p>';
+        }
+      });
+    }
+  });
+}
+
+function doLogout() {
+  sessionStorage.removeItem('editorToken');
+  sessionStorage.removeItem('editorPlayer');
+  token = null; player = null;
+  showLogin();
+}
+
+init();
+</script>
+</body>
+</html>

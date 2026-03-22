@@ -1,0 +1,79 @@
+#!/bin/sh
+# CGI endpoint: GET /cgi-bin/editor-admin?token=...
+# Admin-only: returns all player conversations
+# Optional: ?token=...&player=andrew to filter to one player
+
+DB_PATH="${DB_PATH:-/data/saves/freeciv.sqlite}"
+SAVE_DIR="${SAVE_DIR:-/data/saves}"
+ADMIN_FILE="$SAVE_DIR/editor_admins"
+NOW=$(date +%s)
+
+json_error() {
+  echo "Status: ${2:-400} Bad Request"
+  echo "Content-Type: application/json"
+  echo "Access-Control-Allow-Origin: *"
+  echo ""
+  echo "{\"ok\":false,\"error\":\"$1\"}"
+  exit 0
+}
+
+# Handle CORS preflight
+if [ "$REQUEST_METHOD" = "OPTIONS" ]; then
+  echo "Status: 200 OK"
+  echo "Access-Control-Allow-Origin: *"
+  echo "Access-Control-Allow-Methods: GET, OPTIONS"
+  echo "Access-Control-Allow-Headers: Content-Type"
+  echo ""
+  exit 0
+fi
+
+# Extract and validate token
+TOKEN=$(echo "$QUERY_STRING" | sed -n 's/.*token=\([a-f0-9]*\).*/\1/p' | head -c 64)
+if [ -z "$TOKEN" ] || ! echo "$TOKEN" | grep -qE '^[a-f0-9]{60,64}$'; then
+  json_error "Invalid or missing token" "401 Unauthorized"
+fi
+
+# Look up session
+PLAYER=$(sqlite3 "$DB_PATH" "SELECT player_name FROM editor_sessions WHERE token='$TOKEN' AND expires_at > $NOW;" 2>/dev/null)
+[ -z "$PLAYER" ] && json_error "Session expired or invalid" "401 Unauthorized"
+
+# Check admin status
+if [ ! -f "$ADMIN_FILE" ]; then
+  json_error "No admin access" "403 Forbidden"
+fi
+IS_ADMIN=$(grep -ixc "$PLAYER" "$ADMIN_FILE" 2>/dev/null)
+[ "$IS_ADMIN" -lt 1 ] 2>/dev/null && json_error "No admin access" "403 Forbidden"
+
+# Optional player filter
+FILTER_PLAYER=$(echo "$QUERY_STRING" | sed -n 's/.*player=\([a-zA-Z0-9_-]*\).*/\1/p' | head -c 48)
+
+if [ -n "$FILTER_PLAYER" ]; then
+  # Return messages for a specific player
+  SAFE_PLAYER=$(echo "$FILTER_PLAYER" | tr -cd 'a-zA-Z0-9_-')
+  MESSAGES=$(sqlite3 -json "$DB_PATH" "SELECT role, content, created_at, turn FROM editor_messages WHERE LOWER(player_name)=LOWER('$SAFE_PLAYER') ORDER BY created_at ASC LIMIT 200;" 2>/dev/null | jq -c '.' 2>/dev/null || echo "[]")
+  [ -z "$MESSAGES" ] && MESSAGES="[]"
+
+  echo "Status: 200 OK"
+  echo "Content-Type: application/json"
+  echo "Access-Control-Allow-Origin: *"
+  echo ""
+  printf '{"ok":true,"player":"%s","messages":%s}\n' "$SAFE_PLAYER" "$MESSAGES"
+else
+  # Return list of all players who have conversations, with message counts and last activity
+  PLAYERS=$(sqlite3 -json "$DB_PATH" "
+    SELECT player_name,
+      COUNT(*) as message_count,
+      SUM(CASE WHEN role='player' THEN 1 ELSE 0 END) as player_msgs,
+      SUM(CASE WHEN role='editor' THEN 1 ELSE 0 END) as editor_msgs,
+      MAX(created_at) as last_activity
+    FROM editor_messages
+    GROUP BY player_name
+    ORDER BY last_activity DESC;" 2>/dev/null | jq -c '.' 2>/dev/null || echo "[]")
+  [ -z "$PLAYERS" ] && PLAYERS="[]"
+
+  echo "Status: 200 OK"
+  echo "Content-Type: application/json"
+  echo "Access-Control-Allow-Origin: *"
+  echo ""
+  printf '{"ok":true,"players":%s}\n' "$PLAYERS"
+fi
