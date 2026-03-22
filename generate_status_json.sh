@@ -122,6 +122,20 @@ build_history_entry() {
     p_score=$(echo "$score_section" | grep '^total=' | head -1 | sed 's/total=//')
     [ -z "$p_score" ] && p_score="0"
 
+    # Public score breakdown (visible to all players in-game)
+    local p_wonders p_culture p_pollution p_literacy p_population p_landarea
+    local p_units_built p_units_killed p_units_lost p_spaceship
+    p_wonders=$(echo "$score_section" | grep '^wonders=' | head -1 | sed 's/wonders=//')
+    p_culture=$(echo "$score_section" | grep '^culture=' | head -1 | sed 's/culture=//')
+    p_pollution=$(echo "$score_section" | grep '^pollution=' | head -1 | sed 's/pollution=//')
+    p_literacy=$(echo "$score_section" | grep '^literacy=' | head -1 | sed 's/literacy=//')
+    p_population=$(echo "$score_section" | grep '^population=' | head -1 | sed 's/population=//')
+    p_landarea=$(echo "$score_section" | grep '^landarea=' | head -1 | sed 's/landarea=//')
+    p_units_built=$(echo "$score_section" | grep '^units_built=' | head -1 | sed 's/units_built=//')
+    p_units_killed=$(echo "$score_section" | grep '^units_killed=' | head -1 | sed 's/units_killed=//')
+    p_units_lost=$(echo "$score_section" | grep '^units_lost=' | head -1 | sed 's/units_lost=//')
+    p_spaceship=$(echo "$score_section" | grep '^spaceship=' | head -1 | sed 's/spaceship=//')
+
     # Tech count from [research] section
     local p_techs="0"
     local research_line
@@ -160,7 +174,17 @@ build_history_entry() {
       --arg government "${p_gov:-Despotism}" \
       --argjson is_alive "$local_alive" \
       --argjson unit_types "$unit_types_json" \
-      '{score: $score, cities: $cities, units: $units, gold: $gold, techs: $techs, nation: $nation, government: $government, is_alive: $is_alive, unit_types: $unit_types}')
+      --argjson wonders "${p_wonders:-0}" \
+      --argjson culture "${p_culture:-0}" \
+      --argjson pollution "${p_pollution:-0}" \
+      --argjson literacy "${p_literacy:-0}" \
+      --argjson population "${p_population:-0}" \
+      --argjson landarea "${p_landarea:-0}" \
+      --argjson units_built "${p_units_built:-0}" \
+      --argjson units_killed "${p_units_killed:-0}" \
+      --argjson units_lost "${p_units_lost:-0}" \
+      --argjson spaceship "${p_spaceship:-0}" \
+      '{score: $score, cities: $cities, units: $units, gold: $gold, techs: $techs, nation: $nation, government: $government, is_alive: $is_alive, unit_types: $unit_types, wonders: $wonders, culture: $culture, pollution: $pollution, literacy: $literacy, population: $population, landarea: $landarea, units_built: $units_built, units_killed: $units_killed, units_lost: $units_lost, spaceship: $spaceship}')
 
     if [ -n "$player_json_parts" ]; then
       player_json_parts="${player_json_parts},"
@@ -173,6 +197,73 @@ build_history_entry() {
     --argjson year "${year}" \
     --argjson players "{${player_json_parts}}" \
     '{turn: $turn, year: $year, players: $players}'
+}
+
+# ---------------------------------------------------------------------------
+# Extract public events from event_cache (wonders, combat, government changes).
+# Returns JSON array of {type, message, player?} objects.
+# Only includes events visible to all players ("All" target) or inherently
+# public events (combat, wonders, diplomacy).
+# ---------------------------------------------------------------------------
+extract_public_events() {
+  local tmpfile="$1"
+  local turn
+  turn=$(sed -n '/^\[game\]/,/^\[/p' "$tmpfile" | head -10 | grep '^turn=' | head -1 | sed 's/turn=//')
+
+  # Build player index→name lookup
+  local np
+  np=$(grep -c '^\[player[0-9]' "$tmpfile" 2>/dev/null || echo 0)
+  local name_lookup=""
+  for i in $(seq 0 $((np - 1))); do
+    local n
+    n=$(sed -n "/^\[player${i}\]/,/^\[/p" "$tmpfile" | head -20 | grep '^name=' | head -1 | sed 's/name="//' | sed 's/"//')
+    [ -n "$name_lookup" ] && name_lookup="${name_lookup};"
+    name_lookup="${name_lookup}${i}:${n}"
+  done
+
+  local events="[]"
+  local event_section
+  event_section=$(sed -n '/^\[event_cache\]/,/^\[/p' "$tmpfile")
+
+  # Wonder completions (visible to all)
+  local wonder_events
+  wonder_events=$(echo "$event_section" | grep '"E_WONDER_BUILD"' | while IFS= read -r line; do
+    local msg target
+    msg=$(echo "$line" | sed 's/.*"\(E_WONDER_BUILD\)"//' | sed 's/^[^"]*"//' | sed 's/"[^"]*$//')
+    target=$(echo "$line" | awk -F',' '{gsub(/"/, "", $8); print $8}')
+    # Extract wonder name and city from message like "The Canadians have built The Pyramids in Ottawa"
+    echo "$msg"
+  done)
+  while IFS= read -r wmsg; do
+    [ -z "$wmsg" ] && continue
+    events=$(echo "$events" | jq --arg m "$wmsg" '. + [{type: "wonder_built", message: $m}]')
+  done <<< "$wonder_events"
+
+  # Government changes (visible to all)
+  local gov_events
+  gov_events=$(echo "$event_section" | grep '"E_REVOLT_DONE"' | while IFS= read -r line; do
+    local msg
+    msg=$(echo "$line" | sed 's/.*"E_REVOLT_DONE"//' | sed 's/^[^"]*"//' | sed 's/"[^"]*$//')
+    echo "$msg"
+  done)
+  while IFS= read -r gmsg; do
+    [ -z "$gmsg" ] && continue
+    events=$(echo "$events" | jq --arg m "$gmsg" '. + [{type: "government_change", message: $m}]')
+  done <<< "$gov_events"
+
+  # City founding (new cities are visible on the map)
+  local city_events
+  city_events=$(echo "$event_section" | grep '"E_CITY_BUILD"' | grep '"All"' | while IFS= read -r line; do
+    local msg
+    msg=$(echo "$line" | sed 's/.*"E_CITY_BUILD"//' | sed 's/^[^"]*"//' | sed 's/"[^"]*$//')
+    echo "$msg"
+  done)
+  while IFS= read -r cmsg; do
+    [ -z "$cmsg" ] && continue
+    events=$(echo "$events" | jq --arg m "$cmsg" '. + [{type: "city_founded", message: $m}]')
+  done <<< "$city_events"
+
+  echo "$events"
 }
 
 # ---------------------------------------------------------------------------
@@ -229,6 +320,8 @@ if [ "$REBUILD_HISTORY" = "true" ]; then
     [ ! -f "$save_path" ] && continue
     TMPFILE=$(decompress_save "$save_path") || continue
     ENTRY=$(build_history_entry "$TMPFILE")
+    PUB_EVENTS=$(extract_public_events "$TMPFILE")
+    ENTRY=$(echo "$ENTRY" | jq --argjson ev "$PUB_EVENTS" '. + {public_events: $ev}')
     HISTORY_JSON=$(echo "$HISTORY_JSON" | jq --argjson entry "$ENTRY" '. + [$entry]')
     rm -f "$TMPFILE"
   done <<< "$SAVE_FILES"
@@ -255,6 +348,8 @@ if [ -n "$LATEST_TMPFILE" ] && [ -s "$LATEST_TMPFILE" ]; then
     ALREADY_EXISTS=$(echo "$HISTORY_JSON" | jq --argjson t "${FILENAME_TURN:-$TURN}" '[.[] | select(.turn == $t)] | length')
     if [ "$ALREADY_EXISTS" = "0" ]; then
       ENTRY=$(build_history_entry "$LATEST_TMPFILE")
+      PUB_EVENTS=$(extract_public_events "$LATEST_TMPFILE")
+      ENTRY=$(echo "$ENTRY" | jq --argjson ev "$PUB_EVENTS" '. + {public_events: $ev}')
       HISTORY_JSON=$(echo "$HISTORY_JSON" | jq --argjson entry "$ENTRY" '. + [$entry]')
       echo "$HISTORY_JSON" > "$HISTORY_FILE.tmp"
       mv "$HISTORY_FILE.tmp" "$HISTORY_FILE"

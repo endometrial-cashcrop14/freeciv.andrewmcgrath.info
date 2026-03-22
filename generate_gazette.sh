@@ -22,7 +22,14 @@ GAZETTE_FILE="$SAVE_DIR/gazette.json"
 HISTORY_FILE="$SAVE_DIR/history.json"
 DIPLOMACY_FILE="$SAVE_DIR/diplomacy.json"
 
-# API key: env var > .env file in script dir > file in save dir
+# Provider: anthropic or openai (default: openai)
+GAZETTE_PROVIDER="${GAZETTE_PROVIDER:-openai}"
+if [ -f "$SCRIPT_DIR/.env" ]; then
+  local_provider=$(grep '^GAZETTE_PROVIDER=' "$SCRIPT_DIR/.env" | head -1 | sed 's/^GAZETTE_PROVIDER=//' | tr -d '[:space:]"'"'")
+  [ -n "$local_provider" ] && GAZETTE_PROVIDER="${GAZETTE_PROVIDER:-$local_provider}"
+fi
+
+# API keys: env var > .env file in script dir > file in save dir
 OPENAI_API_KEY="${OPENAI_API_KEY:-}"
 if [ -z "$OPENAI_API_KEY" ] && [ -f "$SCRIPT_DIR/.env" ]; then
   OPENAI_API_KEY=$(grep '^OPENAI_API_KEY=' "$SCRIPT_DIR/.env" | head -1 | sed 's/^OPENAI_API_KEY=//' | tr -d '[:space:]"'"'")
@@ -30,10 +37,30 @@ fi
 if [ -z "$OPENAI_API_KEY" ] && [ -f "$SAVE_DIR/openai_api_key" ]; then
   OPENAI_API_KEY=$(cat "$SAVE_DIR/openai_api_key" | tr -d '[:space:]')
 fi
-if [ -z "$OPENAI_API_KEY" ]; then
-  echo "[gazette] No OpenAI API key found, skipping"
-  exit 0
+
+ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
+if [ -z "$ANTHROPIC_API_KEY" ] && [ -f "$SCRIPT_DIR/.env" ]; then
+  ANTHROPIC_API_KEY=$(grep '^ANTHROPIC_API_KEY=' "$SCRIPT_DIR/.env" | head -1 | sed 's/^ANTHROPIC_API_KEY=//' | tr -d '[:space:]"'"'")
 fi
+if [ -z "$ANTHROPIC_API_KEY" ] && [ -f "$SAVE_DIR/anthropic_api_key" ]; then
+  ANTHROPIC_API_KEY=$(cat "$SAVE_DIR/anthropic_api_key" | tr -d '[:space:]')
+fi
+
+# Validate we have a key for the chosen provider
+if [ "$GAZETTE_PROVIDER" = "anthropic" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+  echo "[gazette] No Anthropic API key found, falling back to openai"
+  GAZETTE_PROVIDER="openai"
+fi
+if [ "$GAZETTE_PROVIDER" = "openai" ] && [ -z "$OPENAI_API_KEY" ]; then
+  if [ -n "$ANTHROPIC_API_KEY" ]; then
+    echo "[gazette] No OpenAI API key found, falling back to anthropic"
+    GAZETTE_PROVIDER="anthropic"
+  else
+    echo "[gazette] No API key found for any provider, skipping"
+    exit 0
+  fi
+fi
+echo "[gazette] Using provider: $GAZETTE_PROVIDER"
 
 # Parse args
 REBUILD=false
@@ -72,25 +99,30 @@ build_turn_context() {
   [ -z "$current_entry" ] && { echo "{}"; return; }
 
   # Build aggregate stats (no per-player breakdown to avoid leaking strategy)
+  # Public information only — per-player details stay private unless inherently visible
   local context
   context=$(jq -n \
     --argjson curr "$current_entry" \
     --argjson prev "${prev_entry:-null}" \
     --argjson dipl_events "$(echo "$diplomacy" | jq --argjson t "$target_turn" '[.events[] | select(.turn == $t)]')" \
+    --argjson all_dipl "$(echo "$diplomacy" | jq '.current // []')" \
     --argjson all_history "$history" \
     '{
       turn: $curr.turn,
       year: $curr.year,
       year_display: (if $curr.year < 0 then "\(-$curr.year) BC" else "\($curr.year) AD" end),
       player_count: ($curr.players | keys | length),
-      players: [$curr.players | to_entries[] | .key],
+      players: [$curr.players | to_entries[] | {name: .key, nation: .value.nation, government: .value.government, is_alive: .value.is_alive}],
 
       totals: {
         total_cities: [$curr.players | to_entries[].value.cities] | add,
         total_units: [$curr.players | to_entries[].value.units] | add,
-        total_population_proxy: [$curr.players | to_entries[].value.score] | add,
+        total_population: [$curr.players | to_entries[].value.population // 0] | add,
         total_techs: [$curr.players | to_entries[].value.techs // 0] | add,
-        avg_gold: ([$curr.players | to_entries[].value.gold] | add / ([$curr.players | to_entries[].value.gold] | length)),
+        total_wonders: [$curr.players | to_entries[].value.wonders // 0] | add,
+        total_culture: [$curr.players | to_entries[].value.culture // 0] | add,
+        total_pollution: [$curr.players | to_entries[].value.pollution // 0] | add,
+        avg_literacy: ([$curr.players | to_entries[].value.literacy // 0] | add / ([$curr.players | to_entries[] | .value.literacy // 0] | length)),
         govs_in_use: [$curr.players | to_entries[].value.government] | unique
       },
 
@@ -105,7 +137,24 @@ build_turn_context() {
           cities_change: ($cc - $pc),
           units_change: ($cu - $pu),
           score_change: ($cs - $ps),
-          new_players: [$curr.players | keys[] | select(. as $k | $prev.players | has($k) | not)]
+          new_players: [$curr.players | keys[] | select(. as $k | $prev.players | has($k) | not)],
+          government_changes: [
+            $curr.players | to_entries[] |
+            select($prev.players[.key] != null and .value.government != $prev.players[.key].government) |
+            {player: .key, from: $prev.players[.key].government, to: .value.government}
+          ],
+          casualties: (
+            ([$curr.players | to_entries[].value.units_killed // 0] | add) as $ck |
+            ([$prev.players | to_entries[].value.units_killed // 0] | add) as $pk |
+            ([$curr.players | to_entries[].value.units_lost // 0] | add) as $cl |
+            ([$prev.players | to_entries[].value.units_lost // 0] | add) as $pl |
+            ([$curr.players | to_entries[].value.units_built // 0] | add) as $cb |
+            ([$prev.players | to_entries[].value.units_built // 0] | add) as $pb |
+            {total_units_killed: ($ck - $pk), total_units_lost: ($cl - $pl), total_units_built: ($cb - $pb)}
+          ),
+          wonder_change: (([$curr.players | to_entries[].value.wonders // 0] | add) as $cw | ([$prev.players | to_entries[].value.wonders // 0] | add) as $pw | ($cw - $pw)),
+          culture_change: (([$curr.players | to_entries[].value.culture // 0] | add) as $ccul | ([$prev.players | to_entries[].value.culture // 0] | add) as $pcul | ($ccul - $pcul)),
+          pollution_change: (([$curr.players | to_entries[].value.pollution // 0] | add) as $cpol | ([$prev.players | to_entries[].value.pollution // 0] | add) as $ppol | ($cpol - $ppol))
         }
       ) else null end),
 
@@ -122,9 +171,49 @@ build_turn_context() {
         }
       ],
 
+      active_wars: [$all_dipl[] | select(.state == "War") | .players],
+      active_alliances: [$all_dipl[] | select(.state == "Alliance") | .players],
+
+      public_events: ($curr.public_events // []),
+
       score_leaders: [$curr.players | to_entries | sort_by(-.value.score)[:3] | .[].key],
       city_leaders: [$curr.players | to_entries | sort_by(-.value.cities)[:3] | .[].key],
-      military_leaders: [$curr.players | to_entries | sort_by(-.value.units)[:3] | .[].key]
+      military_leaders: [$curr.players | to_entries | sort_by(-.value.units)[:3] | .[].key],
+      culture_leaders: [$curr.players | to_entries | sort_by(-((.value.culture // 0)))[:3] | .[].key],
+      wonder_holders: [$curr.players | to_entries[] | select((.value.wonders // 0) > 0) | {name: .key, count: .value.wonders}],
+      spaceship_progress: [$curr.players | to_entries[] | select((.value.spaceship // 0) > 0) | {name: .key, progress: .value.spaceship}],
+
+      trends: (
+        [$all_history | sort_by(.turn) | .[-5:][]] |
+        if length > 1 then {
+          turns_covered: [.[].turn],
+          total_cities_over_time: [.[].players | [to_entries[].value.cities] | add],
+          total_units_over_time: [.[].players | [to_entries[].value.units] | add],
+          total_score_over_time: [.[].players | [to_entries[].value.score] | add],
+          total_pollution_over_time: [.[].players | [to_entries[].value.pollution // 0] | add],
+          total_culture_over_time: [.[].players | [to_entries[].value.culture // 0] | add]
+        } else null end
+      ),
+
+      notable: (
+        [$curr.players | to_entries[] | select(.value.is_alive == false) | .key] as $dead |
+        ($curr.players | to_entries | sort_by(-.value.score) | .[0]) as $top |
+        ($curr.players | to_entries | sort_by(.value.score) | .[0]) as $bottom |
+        ([$curr.players | to_entries[].value.score] | add / length) as $avg_score |
+        {
+          dead_players: $dead,
+          score_leader: {name: $top.key, score: $top.value.score},
+          score_last: {name: $bottom.key, score: $bottom.value.score},
+          score_spread: ($top.value.score - $bottom.value.score),
+          most_warlike: ($curr.players | to_entries | sort_by(-((.value.units_killed // 0))) | .[0] | {name: .key, kills: .value.units_killed}),
+          most_casualties: ($curr.players | to_entries | sort_by(-((.value.units_lost // 0))) | .[0] | {name: .key, losses: .value.units_lost}),
+          highest_pollution: ($curr.players | to_entries | sort_by(-((.value.pollution // 0))) | .[0] | {name: .key, pollution: .value.pollution}),
+          most_cultured: ($curr.players | to_entries | sort_by(-((.value.culture // 0))) | .[0] | {name: .key, culture: .value.culture}),
+          gov_distribution: ([$curr.players | to_entries[].value.government] | group_by(.) | map({gov: .[0], count: length}) | sort_by(-.count)),
+          gov_outliers: [[$curr.players | to_entries[] | {name: .key, gov: .value.government}] | group_by(.gov)[] | select(length == 1) | .[0] | {name: .name, gov: .gov}],
+          underdogs: [$curr.players | to_entries[] | select(.value.score < ($avg_score * 0.7)) | .key]
+        }
+      )
     }')
 
   echo "$context"
@@ -141,86 +230,101 @@ generate_entry() {
 
   local system_prompt
   system_prompt=$(cat <<'SYSPROMPT'
-You are the editor of "The Civ Chronicle", a newspaper covering a Freeciv multiplayer game. Each issue is a full newspaper with distinct sections.
+You are the editor-in-chief of "The Civ Chronicle", a newspaper covering a Freeciv multiplayer game. You run a real newsroom. Your reporters don't just recap what happened — they investigate, analyze, profile, predict, and provoke. Every issue should feel like a newspaper people actually want to read.
 
-Your writing style should evolve with the era:
-- Ancient era (4000 BC - 1000 BC): Write like ancient chronicles and proclamations. Dramatic, mythic tone. "The gods smile upon..." / "Let it be known..." — but keep it readable for a modern audience.
-- Classical era (1000 BC - 500 AD): Roman/Greek historian style. Formal, authoritative, slightly pompous. Think Herodotus or Livy writing a tabloid.
-- Medieval era (500 AD - 1400 AD): Town crier / medieval chronicle style. "Hear ye!" / "It is whispered in the courts..."
-- Renaissance/Colonial (1400 - 1800): Broadsheet pamphlet style. Flowery but pointed, like 18th century newspapers.
-- Industrial/Modern (1800+): Modern newspaper style. Punchy headlines, wire-service tone, with editorial flair.
+## Voice & era
 
-Always keep it entertaining and understandable to a modern reader — the era flavoring is seasoning, not a barrier.
+Match the writing style to the game year:
+- Ancient (4000–1000 BC): Chronicle/proclamation tone, mythic but readable.
+- Classical (1000 BC–500 AD): Herodotus-meets-tabloid. Formal, slightly pompous.
+- Medieval (500–1400 AD): Town crier, court gossip, chronicle style.
+- Renaissance (1400–1800): Broadsheet pamphlet. Flowery but pointed.
+- Modern (1800+): Modern newspaper. Punchy, analytical, editorial flair.
 
-Rules:
-- Use the aggregate data provided (total cities, units, scores, diplomacy events)
-- DO NOT reveal specific player strategies, unit compositions, or per-player gold amounts
-- DO NOT quote exact numbers for individual players. Keep individual details vague ("a growing empire", "one of the larger armies") so as not to give away strategic info
-- You MAY name score leaders, city leaders, and military leaders — but be vague about the gap between them
-- You MAY include rumors, gossip, and speculation — frame them clearly as "rumors suggest", "sources whisper", "unconfirmed reports indicate". These add flavor. They should be plausible but not confirmable from the data.
-- Diplomacy events (first contact, peace, war, alliances) are public knowledge and can be reported directly
-- Aggregate totals (total cities in the world, total units, general tech progress) are fine to share
-- Keep it entertaining and dramatic — exaggerate for effect
-- The headline should be a real newspaper headline — punchy and dramatic. Do NOT include the turn number or year in the headline (e.g. NOT "Turn 11 (3500 BC): ..."). The turn and year are already shown in the masthead.
+Always entertaining for a modern reader — era flavor is seasoning, not a barrier.
 
-The newspaper has these sections:
+## What makes good journalism
 
-1. **Front Page** — The main headline story. 2-3 paragraphs covering the biggest events this turn (diplomacy, expansion, major shifts).
+DO NOT just summarize the turn's data points. That produces boring, repetitive copy. Instead:
 
-2. **Economy** — 1-2 paragraphs on cities, gold, trade, government types in use, economic trends. Include a fictional quote from one of the in-game player leaders (e.g. "Andrew, leader of the Canadians, was overheard saying..."). These are made-up quotes attributed to the actual players in the game — treat them as public figures being quoted by the press. Keep quotes in character for the era.
+- **Analyze, don't summarize**: What do the numbers *mean*? Find the one or two real stories this turn and tell them well.
+- **Use trends**: "For the third straight turn..." — show trajectories, not just snapshots.
+- **Speculate forward**: What should readers watch for? Who's positioned to make a move?
+- **Vary the approach**: One issue might profile a player. Another might investigate pollution. Don't repeat the same formula.
 
-3. **Military** — 1-2 paragraphs on armies, unit counts, military buildup, tensions, conflicts. Include a fictional quote from one of the in-game player leaders commenting on military matters. Pick someone relevant — a military leader, a player involved in tensions, etc.
+BE CONCISE. Each section should be 1-2 short paragraphs, not feature-length articles. A tight column with one sharp insight beats three paragraphs of elaboration. Write like a newspaper with limited column inches — every sentence must earn its place.
 
-4. **Society** — 1-2 paragraphs on tech progress, cultural developments, the state of civilization. Include a fictional quote from one of the in-game player leaders on cultural or scientific matters.
+## Data available
 
-5. **Opinion Column** — A short opinion piece (2-3 paragraphs) written IN THE VOICE of a real famous historical figure, philosopher, or writer who was alive during the game's current year. This is CRITICAL — the person MUST be from the right time. For 3500 BC, use figures like Imhotep or Gilgamesh. For 500 BC, Confucius or Sun Tzu. For 1500 AD, Machiavelli or Erasmus. For 1800 AD, Adam Smith or Marx. For 1950 AD, Orwell or Chomsky. You MUST faithfully reproduce their known writing style, rhetorical habits, and worldview. If Confucius writes, use his aphoristic style. If Machiavelli writes, be pragmatic and calculating. If Orwell writes, be clear-eyed and politically sharp. Research what they actually believed and let that shape their reaction to events. The column should feel like it could plausibly have been written by that person.
+- **players**: names, nations, government types (public knowledge)
+- **totals**: aggregate world stats (cities, units, population, techs, wonders, culture, pollution, literacy)
+- **deltas**: changes since last turn (casualties, government changes, wonder/culture/pollution shifts, new cities)
+- **trends**: 5-turn rolling data for cities, units, score, pollution, culture — use these to identify trajectories
+- **notable**: computed story hooks — score spread, most warlike player, biggest casualties, underdogs, unusual government holdouts, dead players
+- **diplomacy_events / active_wars / active_alliances**: diplomatic landscape
+- **public_events**: wonder completions, revolts, city foundings
+- **wonder_holders / spaceship_progress / culture_leaders**: achievement data
 
-6. **Letters to the Editor** — 2-3 short letters from fictional citizens (a farmer, a soldier, a merchant, a priest, etc.) reacting to events. These should be funny, opinionated, and feel like real people griping or celebrating. Keep each letter to 2-4 sentences.
+## Information rules
 
-You have editorial freedom to adjust sections based on what's interesting this turn. If there's no military news, make that section shorter and expand economy or society. If a huge war just broke out, lead with it and add a "Special Report" section. The four core sections (front page, economy, military, society) should always be present, but you can adjust their weight and add extra sections when the story calls for it.
+- **PUBLIC** (report freely): diplomacy, wars, alliances, government types, aggregate totals, wonder completions, combat casualties, city foundings, rankings, nations, spaceship progress, who holds wonders, government changes, trends
+- **PRIVATE** (never reveal): per-player gold, per-player unit counts or compositions, per-player tech counts, research targets, city production, per-player happiness/literacy/pollution
+- Fictional quotes from in-game player leaders are encouraged — they are public figures being quoted by the press. But use them where they serve the story, not as a formula. Some stories need quotes; some are better without them.
 
-IMPORTANT: Every section should have a byline. Front page, economy, military, and society sections each need a fictional reporter name and title (e.g. "By Khamudi, Chief Scribe" or "By Marcus Varro, Senate Correspondent"). The byline style should match the era. Letters to the editor need the fictional author's name and role. ALL quoted historical figures must be from the correct time period for the game year.
+## Structure
+
+The newspaper has these sections, but you have FULL editorial control over their weight and focus:
+
+- **Front Page**: The ONE story that matters most, told in 2-3 tight paragraphs. Not a summary of everything.
+- **Economy**: 1-2 paragraphs. One insight about the economic situation — inequality, governance, pollution, whatever's interesting.
+- **Military**: 1-2 paragraphs. The balance of power, who's fighting, what it means.
+- **Society**: 1-2 paragraphs. Culture, science, the human side.
+- **Opinion Column**: 2-3 paragraphs IN THE VOICE of a real historical figure alive at the game year. Must faithfully reproduce their actual writing style. React to specific events, not generic philosophy.
+- **Letters to the Editor**: 2-3 SHORT letters (2-3 sentences each) from fictional citizens. Each letter MUST be written by a citizen of a specific player's nation, from a plausible city in that civilization (e.g. "Ottawa, Canada" or "Tokyo, Japan" or "Valletta, Malta"). The letter should reflect that citizen's lived experience under their government — a farmer in a communist state has different complaints than a merchant in a democracy. Reference specific events affecting their nation.
+- **Classifieds**: 3-6 classified ads (vary the number each issue). These should read like REAL classified ads from a newspaper of the game's current era — not jokes with punchlines, but genuinely plausible ads that happen to be funny because of the game context. Each ad MUST include era-appropriate contact info (ancient: "inquire at the eastern gate" / medieval: "send word to the guild hall on Bridge Street" / modern: "call 555-0142" or "email jobs@company.com" or a PO Box). Include prices, quantities, locations, requirements. Some categories: jobs/help wanted, real estate, goods for sale, services, lost & found, personals, legal notices. Plain text only, no HTML tags.
+
+Every section gets an era-appropriate byline. Keep the same reporters across issues.
 
 ## Continuity
 
-You will be given the PREVIOUS issue of the newspaper (if one exists). Use it to maintain continuity:
+When given a PREVIOUS issue:
+- Keep the same reporter staff (or explain departures)
+- Follow up on previous stories and rumors
+- Issue corrections when past speculation proved wrong (be funny about it)
+- Build running narratives — the space race, a rivalry, an underdog's rise
 
-- **Staff consistency**: Try to keep the same reporters/bylines across issues. They are your recurring staff. If you change a reporter (retirement, promotion, fired, eaten by lions), mention it briefly in the front page or a letter.
-- **Corrections**: If the previous issue contained rumors or speculation that turned out wrong based on this turn's data, issue a correction. Be funny about it — "The Chronicle regrets to inform readers that our report of imminent war was, in fact, two shepherds arguing over a goat."
-- **Running threads**: Reference previous stories. If last issue mentioned a military buildup, follow up on it. If an alliance was formed, check if it held.
-- **Ads**: Include 1-2 small classified ads that are era-appropriate and funny. Plain text only, no HTML tags. These should feel like real ads from a newspaper of the current game year. Ancient: "WANTED: Experienced scout. Must have own sandals." Medieval: "FINE SWORDS, best Toledo steel, inquire at the guild hall." Modern: "DEFENSE CONTRACTOR seeks experienced logistics coordinator. Competitive salary. Security clearance required."
+## Headline
 
-Return your response as JSON with this exact structure:
+Punchy, dramatic, like a real newspaper front page. Do NOT include turn number or year — those are in the masthead.
+
+## Output format
+
+Return JSON with this exact structure:
 {
   "headline": "...",
   "sections": {
-    "front_page": {"byline": "era-appropriate reporter name and title", "content": "..."},
-    "economy": {"byline": "era-appropriate reporter name and title", "content": "..."},
-    "military": {"byline": "era-appropriate reporter name and title", "content": "..."},
-    "society": {"byline": "era-appropriate reporter name and title", "content": "..."}
+    "front_page": {"byline": "reporter name and title", "content": "..."},
+    "economy": {"byline": "reporter name and title", "content": "..."},
+    "military": {"byline": "reporter name and title", "content": "..."},
+    "society": {"byline": "reporter name and title", "content": "..."}
   },
   "opinion": {
-    "author": "a real historical figure alive at the game's current year",
-    "author_title": "their real title or description",
+    "author": "real historical figure alive at the game year",
+    "author_title": "their real title",
     "title": "column title",
     "content": "..."
   },
   "letters": [
-    {"author": "era-appropriate citizen role and name", "content": "..."},
-    {"author": "era-appropriate citizen role and name", "content": "..."}
+    {"author": "citizen name, role, city, nation", "content": "..."},
+    {"author": "citizen name, role, city, nation", "content": "..."}
   ],
-  "ads": [
-    "era-appropriate classified ad, plain text, no HTML",
-    "era-appropriate classified ad, plain text, no HTML"
-  ],
-  "corrections": "correction text or null if none needed",
+  "ads": ["classified ad 1", "classified ad 2", "...(3-6 total, vary each issue)"],
+  "corrections": "correction text or null",
   "illustration_caption": {
-    "credit": "full credit line as it would appear in a newspaper of this era, e.g. 'Carving by a temple artisan, Memphis' or 'Illustration by Albrecht Dürer' or 'Photograph by Dorothea Lange, AP'",
+    "credit": "credit line as it would appear in a newspaper of this era (e.g. 'Photograph by Dorothea Lange, AP'). Use the era-appropriate medium (carving/painting/engraving/photograph). Do NOT use words like 'period' or 'era' or 'ancient'. This is a newspaper from THAT day.",
     "description": "plain text description of what the image depicts"
   }
 }
-
-The illustration_caption credit should read exactly the way a newspaper of this era would credit artwork. This is a newspaper from THAT day — not looking back at history. Do NOT use words like "period", "era", "ancient", or "unknown." Write it as a natural credit line: "Carving by a temple artisan, Memphis" or "Engraving by Albrecht Dürer" or "Photograph by Dorothea Lange, AP". The medium (carving, painting, engraving, photograph) should match the era. The description should be plain text (no HTML).
 
 All content fields should use simple HTML (<p>, <strong>, <em>) for formatting.
 SYSPROMPT
@@ -240,35 +344,67 @@ Previous issue of The Civ Chronicle:
 ${prev_issue}"
   fi
 
-  local request_body
-  request_body=$(jq -n \
-    --arg system "$system_prompt" \
-    --arg user "$user_prompt" \
-    '{
-      model: "gpt-5.4",
-      messages: [
-        {role: "system", content: $system},
-        {role: "user", content: $user}
-      ],
-      temperature: 0.9,
-      max_completion_tokens: 3000,
-      response_format: {type: "json_object"}
-    }')
+  local request_body response content
 
-  local response
-  response=$(curl -s --max-time 60 \
-    -H "Authorization: Bearer $OPENAI_API_KEY" \
-    -H "Content-Type: application/json" \
-    -d "$request_body" \
-    "https://api.openai.com/v1/chat/completions")
+  if [ "$GAZETTE_PROVIDER" = "anthropic" ]; then
+    request_body=$(jq -n \
+      --arg system "$system_prompt" \
+      --arg user "$user_prompt" \
+      '{
+        model: "claude-opus-4-6",
+        max_tokens: 2500,
+        system: $system,
+        messages: [
+          {role: "user", content: $user}
+        ],
+        temperature: 0.9
+      }')
 
-  local content
-  content=$(echo "$response" | jq -r '.choices[0].message.content // empty')
+    response=$(curl -s --max-time 120 \
+      -H "x-api-key: $ANTHROPIC_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "Content-Type: application/json" \
+      -d "$request_body" \
+      "https://api.anthropic.com/v1/messages")
 
-  if [ -z "$content" ]; then
-    echo "[gazette] OpenAI call failed for turn $turn" >&2
-    echo "$response" | jq . >&2 2>/dev/null || echo "$response" >&2
-    return 1
+    content=$(echo "$response" | jq -r '.content[0].text // empty')
+
+    if [ -z "$content" ]; then
+      echo "[gazette] Anthropic call failed for turn $turn" >&2
+      echo "$response" | jq . >&2 2>/dev/null || echo "$response" >&2
+      return 1
+    fi
+
+    # Claude may wrap JSON in markdown code fences — strip them
+    content=$(echo "$content" | sed '/^```json$/d' | sed '/^```$/d')
+  else
+    request_body=$(jq -n \
+      --arg system "$system_prompt" \
+      --arg user "$user_prompt" \
+      '{
+        model: "gpt-5.4",
+        messages: [
+          {role: "system", content: $system},
+          {role: "user", content: $user}
+        ],
+        temperature: 0.9,
+        max_completion_tokens: 3000,
+        response_format: {type: "json_object"}
+      }')
+
+    response=$(curl -s --max-time 60 \
+      -H "Authorization: Bearer $OPENAI_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d "$request_body" \
+      "https://api.openai.com/v1/chat/completions")
+
+    content=$(echo "$response" | jq -r '.choices[0].message.content // empty')
+
+    if [ -z "$content" ]; then
+      echo "[gazette] OpenAI call failed for turn $turn" >&2
+      echo "$response" | jq . >&2 2>/dev/null || echo "$response" >&2
+      return 1
+    fi
   fi
 
   # Validate it's JSON with expected fields
