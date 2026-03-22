@@ -101,10 +101,26 @@ build_turn_context() {
 
   [ -z "$current_entry" ] && { echo "{}"; return; }
 
+  # All player correspondence — the gazette AI decides what to include
+  # published=0 means not yet used, published=<turn> means used in that edition
+  local DB_PATH="${DB_PATH:-/data/saves/freeciv.sqlite}"
+  local submissions="[]"
+  if [ -f "$DB_PATH" ]; then
+    # Unpublished messages (never used in a gazette) + recently published (for context/continuity)
+    submissions=$(sqlite3 -json "$DB_PATH" "
+      SELECT player_name, role, content, published,
+        CASE WHEN published > 0 THEN 'Published in edition ' || published ELSE 'Not yet published' END as pub_status
+      FROM editor_messages
+      WHERE turn >= $((target_turn - 3)) OR published = 0
+      ORDER BY created_at;" 2>/dev/null | jq -c '.' 2>/dev/null || echo "[]")
+    [ -z "$submissions" ] && submissions="[]"
+  fi
+
   # Build aggregate stats (no per-player breakdown to avoid leaking strategy)
   # Public information only — per-player details stay private unless inherently visible
   local context
   context=$(jq -n \
+    --argjson player_subs "$submissions" \
     --argjson curr "$current_entry" \
     --argjson prev "${prev_entry:-null}" \
     --argjson dipl_events "$(echo "$diplomacy" | jq --argjson t "$target_turn" '[.events[] | select(.turn == $t)]')" \
@@ -216,7 +232,9 @@ build_turn_context() {
           gov_outliers: [[$curr.players | to_entries[] | {name: .key, gov: .value.government}] | group_by(.gov)[] | select(length == 1) | .[0] | {name: .name, gov: .gov}],
           underdogs: [$curr.players | to_entries[] | select(.value.score < ($avg_score * 0.7)) | .key]
         }
-      )
+      ),
+
+      player_submissions: $player_subs
     }')
 
   echo "$context"
@@ -267,6 +285,7 @@ BE CONCISE. Each section should be 1-2 short paragraphs, not feature-length arti
 - **diplomacy_events / active_wars / active_alliances**: diplomatic landscape
 - **public_events**: wonder completions, revolts, city foundings
 - **wonder_holders / spaceship_progress / culture_leaders**: achievement data
+- **player_submissions**: Correspondence between the editor and in-game leaders. Includes player messages and editor replies, with a `pub_status` field showing whether each was already published (e.g. "Published in edition 99") or "Not yet published". You have FULL editorial discretion to quote, paraphrase, or reference any material. Treat player messages as on-the-record statements from public figures. Prefer unpublished material — avoid re-quoting things already published in a previous edition unless following up on a story. Weave the best material into articles naturally. Not everything needs to be used.
 
 ## Information rules
 
@@ -580,6 +599,12 @@ process_turn() {
   echo "$GAZETTE_JSON" > "$GAZETTE_FILE.tmp"
   mv "$GAZETTE_FILE.tmp" "$GAZETTE_FILE"
   ln -sf "$GAZETTE_FILE" "$WEBROOT/gazette.json"
+
+  # Mark unpublished player messages as used in this edition
+  local DB_PATH="${DB_PATH:-/data/saves/freeciv.sqlite}"
+  if [ -f "$DB_PATH" ]; then
+    sqlite3 "$DB_PATH" "UPDATE editor_messages SET published=$target_turn WHERE role='player' AND published=0;" 2>/dev/null || true
+  fi
 
   echo "[gazette] Generated: $(echo "$entry" | jq -r '.headline')"
 }

@@ -133,5 +133,20 @@ On resume, `start.sh` automatically:
 - For mid-game changes (nation, units, gold), edit the save file directly (see Save File Format above)
 - When adding a player, update ALL of: `manage_players.sh` (PLAYERS array), `longturn.serv`, `start.sh` (aitoggle list)
 
+## The Civ Chronicle (AI Editor)
+- `generate_gazette.sh` — Generates the newspaper each turn using AI (Anthropic Claude or OpenAI)
+- `respond_to_editor.sh` — Hourly cron: replies to player messages as the in-character editor. On turn change (`--outreach`), proactively contacts 1-3 interesting players for comment.
+- `www/editor.html` — Standalone chat page where players write to the editor
+- `www/cgi-bin/editor-login` — Auth endpoint (POST, returns session token)
+- `www/cgi-bin/editor-messages` — Get conversation history (GET, requires token)
+- `www/cgi-bin/editor-submit` — Submit a message (POST, requires token)
+- The editor knows about ALL player conversations (confidential sources) but never reveals who said what
+- ALL player correspondence is on the record — the gazette AI has full editorial discretion to quote, paraphrase, or reference any material from any conversation
+- After each gazette edition, player messages are stamped with the turn number they were published in (`published=<turn>`) to prevent double-publishing
+- Email notifications: "The Editor has replied" for replies, "The Editor requests your comment" for outreach
+- Emails render markdown (bold/italic) as HTML
+- **Player emails are critical** — without an email in `fcdb_auth`, a player won't receive editor replies, turn notifications, or proactive outreach. Always provide an email when creating players with `manage_players.sh`
+- **Manual outreach**: `fly ssh console --app freeciv-longturn -C "/opt/freeciv/respond_to_editor.sh --outreach"` to trigger editor outreach outside the normal turn cycle
+
 ## Players
 shazow, hyfen, blakkout, jess, andrew, jamsem24, minikeg, tracymakes, ihop, shogun, kimjongboom, kroony, tankerjon, peter, DetectiveG, UncleS

@@ -1,0 +1,55 @@
+#!/bin/sh
+# CGI endpoint: GET /cgi-bin/editor-messages?token=...
+# Returns conversation history for the authenticated player
+
+DB_PATH="${DB_PATH:-/data/saves/freeciv.sqlite}"
+STATUS_FILE="/opt/freeciv/www/status.json"
+NOW=$(date +%s)
+
+# --- helpers ---
+json_error() {
+  echo "Status: ${2:-400} Bad Request"
+  echo "Content-Type: application/json"
+  echo "Access-Control-Allow-Origin: *"
+  echo ""
+  echo "{\"ok\":false,\"error\":\"$1\"}"
+  exit 0
+}
+
+# Handle CORS preflight
+if [ "$REQUEST_METHOD" = "OPTIONS" ]; then
+  echo "Status: 200 OK"
+  echo "Access-Control-Allow-Origin: *"
+  echo "Access-Control-Allow-Methods: GET, OPTIONS"
+  echo "Access-Control-Allow-Headers: Content-Type"
+  echo ""
+  exit 0
+fi
+
+# --- extract and validate token ---
+TOKEN=$(echo "$QUERY_STRING" | sed -n 's/.*token=\([a-f0-9]*\).*/\1/p' | head -c 64)
+if [ -z "$TOKEN" ] || ! echo "$TOKEN" | grep -qE '^[a-f0-9]{60,64}$'; then
+  json_error "Invalid or missing token" "401 Unauthorized"
+fi
+
+# --- look up session ---
+PLAYER=$(sqlite3 "$DB_PATH" "SELECT player_name FROM editor_sessions WHERE token='$TOKEN' AND expires_at > $NOW;" 2>/dev/null)
+[ -z "$PLAYER" ] && json_error "Session expired or invalid" "401 Unauthorized"
+
+# --- get current turn ---
+TURN=0
+if [ -f "$STATUS_FILE" ]; then
+  TURN=$(jq -r '.game.turn // 0' "$STATUS_FILE" 2>/dev/null)
+fi
+
+# --- fetch messages ---
+# PLAYER comes from DB (trusted), not user input
+# sqlite3 -json handles escaping, pipe through jq -c to compact (removes literal newlines)
+MESSAGES=$(sqlite3 -json "$DB_PATH" "SELECT role, content, created_at FROM editor_messages WHERE player_name='$PLAYER' ORDER BY created_at ASC LIMIT 100;" 2>/dev/null | jq -c '.')
+[ -z "$MESSAGES" ] && MESSAGES="[]"
+
+echo "Status: 200 OK"
+echo "Content-Type: application/json"
+echo "Access-Control-Allow-Origin: *"
+echo ""
+printf '{"ok":true,"player":"%s","turn":%s,"messages":%s}\n' "$PLAYER" "$TURN" "$MESSAGES"

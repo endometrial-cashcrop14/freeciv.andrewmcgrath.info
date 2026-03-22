@@ -1,0 +1,90 @@
+#!/bin/sh
+# CGI endpoint: POST /cgi-bin/editor-submit?token=...
+# Input:  JSON body {"message":"..."}
+# Output: {"ok":true} or {"ok":false,"error":"..."}
+
+DB_PATH="${DB_PATH:-/data/saves/freeciv.sqlite}"
+STATUS_FILE="/opt/freeciv/www/status.json"
+NOW=$(date +%s)
+MAX_MESSAGE_LENGTH=1000
+
+# --- helpers ---
+json_error() {
+  echo "Status: ${2:-400} Bad Request"
+  echo "Content-Type: application/json"
+  echo "Access-Control-Allow-Origin: *"
+  echo ""
+  echo "{\"ok\":false,\"error\":\"$1\"}"
+  exit 0
+}
+
+json_ok() {
+  echo "Status: 200 OK"
+  echo "Content-Type: application/json"
+  echo "Access-Control-Allow-Origin: *"
+  echo ""
+  echo "$1"
+  exit 0
+}
+
+# Handle CORS preflight
+if [ "$REQUEST_METHOD" = "OPTIONS" ]; then
+  echo "Status: 200 OK"
+  echo "Access-Control-Allow-Origin: *"
+  echo "Access-Control-Allow-Methods: POST, OPTIONS"
+  echo "Access-Control-Allow-Headers: Content-Type"
+  echo ""
+  exit 0
+fi
+
+# --- validate method ---
+[ "$REQUEST_METHOD" != "POST" ] && json_error "Method not allowed" "405 Method Not Allowed"
+
+# --- extract and validate token ---
+TOKEN=$(echo "$QUERY_STRING" | sed -n 's/.*token=\([a-f0-9]*\).*/\1/p' | head -c 64)
+if [ -z "$TOKEN" ] || ! echo "$TOKEN" | grep -qE '^[a-f0-9]{60,64}$'; then
+  json_error "Invalid or missing token" "401 Unauthorized"
+fi
+
+# --- look up session ---
+PLAYER=$(sqlite3 "$DB_PATH" "SELECT player_name FROM editor_sessions WHERE token='$TOKEN' AND expires_at > $NOW;" 2>/dev/null)
+[ -z "$PLAYER" ] && json_error "Session expired or invalid" "401 Unauthorized"
+
+# --- read POST body ---
+BODY=""
+if [ -n "$CONTENT_LENGTH" ] && [ "$CONTENT_LENGTH" -gt 0 ] 2>/dev/null; then
+  READ_LEN=$CONTENT_LENGTH
+  [ "$READ_LEN" -gt 2048 ] && READ_LEN=2048
+  BODY=$(head -c "$READ_LEN")
+fi
+[ -z "$BODY" ] && json_error "Empty request body"
+
+# --- extract message ---
+MESSAGE=$(echo "$BODY" | jq -r '.message // empty' 2>/dev/null)
+[ -z "$MESSAGE" ] && json_error "Missing message"
+
+# --- sanitize message ---
+# Strip HTML tags
+MESSAGE=$(echo "$MESSAGE" | sed 's/<[^>]*>//g')
+# Truncate to max length
+MESSAGE=$(echo "$MESSAGE" | head -c "$MAX_MESSAGE_LENGTH")
+# Strip null bytes
+MESSAGE=$(echo "$MESSAGE" | tr -d '\000')
+# Escape single quotes for SQLite
+SAFE_MESSAGE=$(echo "$MESSAGE" | sed "s/'/''/g")
+[ -z "$SAFE_MESSAGE" ] && json_error "Message is empty after sanitization"
+
+# --- get current turn ---
+TURN=0
+if [ -f "$STATUS_FILE" ]; then
+  TURN=$(jq -r '.game.turn // 0' "$STATUS_FILE" 2>/dev/null)
+fi
+
+# --- insert message ---
+sqlite3 "$DB_PATH" "INSERT INTO editor_messages (player_name, role, content, created_at, turn) VALUES ('$PLAYER', 'player', '$SAFE_MESSAGE', $NOW, $TURN);" 2>/dev/null
+
+if [ $? -ne 0 ]; then
+  json_error "Failed to save message" "500 Internal Server Error"
+fi
+
+json_ok '{"ok":true}'

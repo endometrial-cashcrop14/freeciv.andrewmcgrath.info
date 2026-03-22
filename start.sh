@@ -255,6 +255,8 @@ fi
           /opt/freeciv/generate_status_json.sh >> /data/saves/status-generator.log 2>&1
           # Generate gazette before email so the email can include it
           /opt/freeciv/generate_gazette.sh "$turn" "$year" >> /data/saves/gazette.log 2>&1
+          # Editor proactive outreach (contacts 1-2 interesting players per turn)
+          /opt/freeciv/respond_to_editor.sh --outreach >> /data/saves/editor.log 2>&1 &
           echo "[turn-watcher] Triggering notification for turn $turn"
           /opt/freeciv/turn_notify.sh "$turn" "$year" &
 

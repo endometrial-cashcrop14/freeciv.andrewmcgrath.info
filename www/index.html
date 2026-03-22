@@ -325,7 +325,7 @@
   function renderNav(d) {
     var links = document.getElementById('nav-links');
     links.innerHTML = d.game.turn > 0
-      ? '<a href="#gazette">Chronicle</a><a href="#rankings">Rankings</a><a href="#history">History</a><a href="#connect">Connect</a><a href="/changelog.html">Changelog</a>'
+      ? '<a href="#gazette">Chronicle</a><a href="#rankings">Rankings</a><a href="#history">History</a><a href="#connect">Connect</a>'
       : '<a href="#connect">Connect</a><a href="#rules">Rules</a><a href="/changelog.html">Changelog</a>';
     var on = d.game.server_status === 'Online';
     document.getElementById('status-pill').innerHTML =
@@ -665,6 +665,21 @@
 
     var g = entries[gazetteTurn];
 
+    // Highlight player names: bold + capitalize first letter
+    var playerNames = d.players ? d.players.map(function(p) { return p.name; }) : [];
+    function highlightPlayers(html) {
+      if (!playerNames.length) return html;
+      // Sort longest first to avoid partial matches
+      var sorted = playerNames.slice().sort(function(a,b) { return b.length - a.length; });
+      sorted.forEach(function(name) {
+        var cap = name.charAt(0).toUpperCase() + name.slice(1);
+        // Match the name as a whole word (not inside HTML tags), case-insensitive
+        var re = new RegExp('(?<![\\w/"\\.])(' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(?![\\w])', 'gi');
+        html = html.replace(re, '<strong>' + cap + '</strong>');
+      });
+      return html;
+    }
+
     var bodyHtml = '';
 
     // New format with sections
@@ -775,6 +790,7 @@
       }
 
       // Newspaper footer
+      bodyHtml += '<div style="text-align:center;padding:14px 20px;border-top:1px solid #ccc;"><a href="/editor.html" style="font-family:Georgia,serif;font-size:13px;color:#1a1a1a;text-decoration:none;font-style:italic;">Have a tip? A proclamation? A complaint? <strong style="text-decoration:underline;">Write to the Editor</strong> &rarr;</a></div>';
       bodyHtml += '<div class="gazette-footer">The Civ Chronicle &mdash; All the civilization that\'s fit to print</div>';
 
     } else if (g.article) {
@@ -783,6 +799,9 @@
         '<div style="font-size:11px;color:#888;font-style:italic;margin-bottom:16px;">The Civ Chronicle &middot; Turn ' + g.turn + ' &middot; ' + esc(g.year_display) + '</div>' +
         '<div class="gazette-body">' + g.article + '</div></div>';
     }
+
+    // Highlight player names in all gazette content
+    bodyHtml = highlightPlayers(bodyHtml);
 
     // Build masthead + nav + body
     sec.innerHTML = '<section id="gazette"><div class="section-head"><h2>The Civ Chronicle</h2><div class="line"></div></div>' +

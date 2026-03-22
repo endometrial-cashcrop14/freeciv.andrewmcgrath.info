@@ -1,0 +1,97 @@
+#!/bin/sh
+# CGI endpoint: POST /cgi-bin/editor-login
+# Input:  JSON body {"username":"...","password":"..."}
+# Output: {"ok":true,"player":"...","token":"..."} or {"ok":false,"error":"..."}
+
+DB_PATH="${DB_PATH:-/data/saves/freeciv.sqlite}"
+NOW=$(date +%s)
+EXPIRES=$((NOW + 86400))  # 24 hours
+
+# --- helpers ---
+json_error() {
+  echo "Status: ${2:-400} Bad Request"
+  echo "Content-Type: application/json"
+  echo "Access-Control-Allow-Origin: *"
+  echo ""
+  echo "{\"ok\":false,\"error\":\"$1\"}"
+  exit 0
+}
+
+json_ok() {
+  echo "Status: 200 OK"
+  echo "Content-Type: application/json"
+  echo "Access-Control-Allow-Origin: *"
+  echo ""
+  echo "$1"
+  exit 0
+}
+
+# Handle CORS preflight
+if [ "$REQUEST_METHOD" = "OPTIONS" ]; then
+  echo "Status: 200 OK"
+  echo "Access-Control-Allow-Origin: *"
+  echo "Access-Control-Allow-Methods: POST, OPTIONS"
+  echo "Access-Control-Allow-Headers: Content-Type"
+  echo ""
+  exit 0
+fi
+
+# --- validate method ---
+[ "$REQUEST_METHOD" != "POST" ] && json_error "Method not allowed" "405 Method Not Allowed"
+
+# --- read POST body ---
+BODY=""
+if [ -n "$CONTENT_LENGTH" ] && [ "$CONTENT_LENGTH" -gt 0 ] 2>/dev/null; then
+  # Cap at 1024 bytes
+  READ_LEN=$CONTENT_LENGTH
+  [ "$READ_LEN" -gt 1024 ] && READ_LEN=1024
+  BODY=$(head -c "$READ_LEN")
+fi
+[ -z "$BODY" ] && json_error "Empty request body"
+
+# --- extract credentials ---
+USERNAME=$(printf '%s' "$BODY" | jq -r '.username // empty' 2>/dev/null | tr -d '\n')
+PASSWORD=$(printf '%s' "$BODY" | jq -r '.password // empty' 2>/dev/null | tr -d '\n')
+[ -z "$USERNAME" ] && json_error "Missing username"
+[ -z "$PASSWORD" ] && json_error "Missing password"
+
+# --- sanitize username (alphanumeric, underscore, dash, max 48 chars) ---
+SAFE_USER=$(echo "$USERNAME" | tr -cd 'a-zA-Z0-9_-' | head -c 48)
+[ -z "$SAFE_USER" ] && json_error "Invalid username"
+
+# --- hash password (MD5, matching freeciv auth) ---
+MD5_PASS=$(printf '%s' "$PASSWORD" | md5sum | awk '{print $1}')
+
+# --- ensure tables exist ---
+sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS editor_sessions (
+  token VARCHAR(64) PRIMARY KEY,
+  player_name VARCHAR(48) NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);" 2>/dev/null
+
+sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS editor_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_name VARCHAR(48) NOT NULL,
+  role VARCHAR(10) NOT NULL,
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  turn INTEGER DEFAULT 0,
+  published INTEGER DEFAULT 0
+);" 2>/dev/null
+
+# --- verify credentials ---
+# MD5 hash is hex-only, SAFE_USER is alphanumeric — both safe for SQL
+DB_NAME=$(sqlite3 "$DB_PATH" "SELECT name FROM fcdb_auth WHERE LOWER(name)=LOWER('$SAFE_USER') AND password='$MD5_PASS';" 2>/dev/null)
+[ -z "$DB_NAME" ] && json_error "Invalid credentials" "401 Unauthorized"
+
+# --- generate session token ---
+TOKEN=$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom | head -c 64)
+[ -z "$TOKEN" ] && json_error "Token generation failed" "500 Internal Server Error"
+
+# --- store session, clean expired ---
+sqlite3 "$DB_PATH" "INSERT OR REPLACE INTO editor_sessions (token, player_name, created_at, expires_at) VALUES ('$TOKEN', '$DB_NAME', $NOW, $EXPIRES);" 2>/dev/null
+sqlite3 "$DB_PATH" "DELETE FROM editor_sessions WHERE expires_at < $NOW;" 2>/dev/null
+
+# --- return token ---
+json_ok "{\"ok\":true,\"player\":\"$DB_NAME\",\"token\":\"$TOKEN\"}"

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Write to the Editor — The Civ Chronicle</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#1a1a1a; font-family:'Georgia','Times New Roman',serif; color:#1a1a1a; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+    .editor-page { max-width:520px; width:100%; background:#f5f0e6; border:1px solid #d5d0c5; overflow:hidden; }
+    .editor-masthead { text-align:center; padding:20px 24px 14px; border-bottom:3px double #1a1a1a; }
+    .editor-masthead h1 { font-size:28px; font-weight:900; letter-spacing:1px; line-height:1; }
+    .editor-masthead .sub { font-size:10px; color:#888; text-transform:uppercase; letter-spacing:3px; margin-top:6px; }
+    .editor-masthead .tagline { font-size:11px; color:#666; font-style:italic; margin-top:8px; }
+    .back-link { display:block; text-align:center; margin-top:14px; }
+    .back-link a { font-size:11px; color:#537895; text-decoration:none; font-family:-apple-system,sans-serif; }
+    .back-link a:hover { text-decoration:underline; }
+
+    /* Login */
+    .editor-login { padding:30px 24px; text-align:center; }
+    .editor-login p { font-size:13px; color:#444; margin-bottom:16px; line-height:1.5; }
+    .editor-login input { font-family:'Georgia',serif; font-size:14px; padding:10px 14px; border:1px solid #ccc; background:#fff; color:#1a1a1a; width:200px; display:block; margin:8px auto; border-radius:0; }
+    .editor-login button { font-family:'Georgia',serif; font-size:14px; padding:10px 28px; border:1px solid #1a1a1a; background:#1a1a1a; color:#f5f0e6; cursor:pointer; margin-top:8px; letter-spacing:1px; }
+    .editor-login button:hover { background:#333; }
+    .editor-error { color:#8b0000; font-size:12px; margin-top:10px; min-height:18px; }
+
+    /* Chat */
+    .editor-chat { display:flex; flex-direction:column; height:500px; }
+    .editor-messages { flex:1; overflow-y:auto; padding:16px 20px; }
+    .editor-msg { margin-bottom:14px; max-width:85%; }
+    .editor-msg-player { margin-left:auto; text-align:right; }
+    .editor-msg-editor { margin-right:auto; }
+    .editor-msg-label { font-size:9px; text-transform:uppercase; letter-spacing:1px; color:#888; margin-bottom:3px; }
+    .editor-msg-bubble { font-size:13px; line-height:1.6; padding:10px 14px; border-radius:2px; }
+    .editor-msg-player .editor-msg-bubble { background:#ede8d8; border:1px solid #d5d0c5; }
+    .editor-msg-editor .editor-msg-bubble { background:#fff; border:1px solid #ccc; font-style:italic; }
+    .editor-msg-time { font-size:9px; color:#aaa; margin-top:3px; }
+    .editor-compose { border-top:2px solid #1a1a1a; }
+    .editor-compose textarea { display:block; width:100%; font-family:'Georgia',serif; font-size:14px; padding:12px 16px; border:none; background:#fff; color:#1a1a1a; outline:none; resize:none; height:80px; box-sizing:border-box; }
+    .editor-compose-bar { display:flex; justify-content:flex-end; align-items:center; padding:6px 12px; background:#fff; border-top:1px solid #eee; }
+    .editor-compose-bar .hint { font-size:10px; color:#aaa; flex:1; font-style:italic; }
+    .editor-compose-bar button { font-family:'Georgia',serif; font-size:12px; padding:8px 22px; border:none; background:#1a1a1a; color:#f5f0e6; cursor:pointer; text-transform:uppercase; letter-spacing:1px; }
+    .editor-compose-bar button:hover { background:#333; }
+    .editor-bar { font-size:10px; color:#888; text-align:center; padding:8px; border-top:1px solid #e5e0d5; font-style:italic; }
+    .editor-bar a { color:#888; cursor:pointer; text-decoration:underline; }
+    .editor-footer { text-align:center; padding:10px; border-top:3px double #1a1a1a; font-size:9px; color:#888; text-transform:uppercase; letter-spacing:2px; }
+
+    .empty-state { font-size:13px; color:#888; text-align:center; padding:60px 20px; font-style:italic; line-height:1.6; }
+
+    @media(max-width:560px) { .editor-page { border:none; } body { padding:0; } .editor-chat { height:calc(100vh - 120px); } }
+  </style>
+</head>
+<body>
+
+<div class="editor-page">
+  <div class="editor-masthead">
+    <h1>The Civ Chronicle</h1>
+    <div class="sub">Correspondence Desk</div>
+    <div class="tagline">Write to the editor. Share tips, proclamations, or complaints.</div>
+  </div>
+
+  <div id="editor-content">
+    <div class="editor-login">
+      <p>Sign in with your Freeciv game credentials to write to the editor.</p>
+      <input type="text" id="editor-user" placeholder="Username" autocapitalize="none" autocorrect="off">
+      <input type="password" id="editor-pass" placeholder="Password">
+      <button id="editor-login-btn">Sign In</button>
+      <div class="editor-error" id="editor-login-error"></div>
+    </div>
+  </div>
+
+  <div class="editor-footer">All the civilization that's fit to print</div>
+</div>
+
+<div class="back-link"><a href="/">&larr; Back to game status</a></div>
+
+<script>
+var token = sessionStorage.getItem('editorToken');
+var player = sessionStorage.getItem('editorPlayer');
+var pollTimer = null;
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function init() {
+  if (token) { showChat(); } else { showLogin(); }
+}
+
+function showLogin() {
+  document.getElementById('editor-content').innerHTML =
+    '<div class="editor-login">' +
+    '<p>Sign in with your Freeciv game credentials to write to the editor.</p>' +
+    '<input type="text" id="editor-user" placeholder="Username" autocapitalize="none" autocorrect="off">' +
+    '<input type="password" id="editor-pass" placeholder="Password">' +
+    '<button id="editor-login-btn">Sign In</button>' +
+    '<div class="editor-error" id="editor-login-error"></div></div>';
+  document.getElementById('editor-login-btn').addEventListener('click', doLogin);
+  document.getElementById('editor-pass').addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('editor-user').focus();
+}
+
+function showChat() {
+  document.getElementById('editor-content').innerHTML =
+    '<div class="editor-chat">' +
+    '<div class="editor-messages" id="msg-list"></div>' +
+    '<div class="editor-bar">The editor responds within the hour. <a id="logout-btn">Sign out (' + esc(player) + ')</a></div>' +
+    '<div class="editor-compose">' +
+    '<textarea id="msg-input" placeholder="Write to the editor..." maxlength="1000"></textarea>' +
+    '<div class="editor-compose-bar"><span class="hint">Cmd+Enter to send</span><button id="send-btn">Send</button></div></div></div>';
+  document.getElementById('send-btn').addEventListener('click', doSend);
+  document.getElementById('msg-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { doSend(); e.preventDefault(); }
+  });
+  document.getElementById('logout-btn').addEventListener('click', function() {
+    sessionStorage.removeItem('editorToken'); sessionStorage.removeItem('editorPlayer');
+    token = null; player = null;
+    if (pollTimer) clearInterval(pollTimer);
+    showLogin();
+  });
+  loadMessages();
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(loadMessages, 60000);
+  document.getElementById('msg-input').focus();
+}
+
+function doLogin() {
+  var user = document.getElementById('editor-user').value.trim();
+  var pass = document.getElementById('editor-pass').value;
+  var err = document.getElementById('editor-login-error');
+  if (!user || !pass) { err.textContent = 'Enter username and password'; return; }
+  err.textContent = 'Signing in...';
+  fetch('/cgi-bin/editor-login', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username: user, password: pass})
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) {
+      token = d.token; player = d.player;
+      sessionStorage.setItem('editorToken', d.token);
+      sessionStorage.setItem('editorPlayer', d.player);
+      showChat();
+    } else { err.textContent = d.error || 'Login failed'; }
+  }).catch(function() { err.textContent = 'Connection error'; });
+}
+
+function doSend() {
+  var input = document.getElementById('msg-input');
+  var msg = input.value.trim();
+  if (!msg) return;
+  input.value = ''; input.disabled = true;
+  fetch('/cgi-bin/editor-submit?token=' + token, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message: msg})
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    input.disabled = false;
+    if (d.ok) { loadMessages(); }
+    else if (d.error && d.error.indexOf('expired') >= 0) { token = null; showLogin(); }
+    else { input.value = msg; alert(d.error || 'Failed to send'); }
+    input.focus();
+  }).catch(function() { input.disabled = false; input.value = msg; });
+}
+
+function loadMessages() {
+  if (!token) return;
+  fetch('/cgi-bin/editor-messages?token=' + token)
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.ok) {
+      if (d.error && d.error.indexOf('expired') >= 0) { token = null; showLogin(); }
+      return;
+    }
+    var list = document.getElementById('msg-list');
+    if (!list) return;
+    var html = '';
+    if (!d.messages || !d.messages.length) {
+      html = '<div class="empty-state">No messages yet.<br>Write something to the editor &mdash; a proclamation, a tip, a complaint.<br>The editor will respond within the hour.</div>';
+    } else {
+      d.messages.forEach(function(m) {
+        var isP = m.role === 'player';
+        var cls = isP ? 'editor-msg-player' : 'editor-msg-editor';
+        var label = isP ? esc(d.player) : 'The Editor';
+        var dt = new Date(m.created_at * 1000);
+        var ts = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        html += '<div class="editor-msg ' + cls + '"><div class="editor-msg-label">' + label + '</div><div class="editor-msg-bubble"></div><div class="editor-msg-time">' + ts + '</div></div>';
+      });
+    }
+    list.innerHTML = html;
+    if (d.messages) {
+      var bubbles = list.querySelectorAll('.editor-msg-bubble');
+      d.messages.forEach(function(m, i) {
+        if (m.role === 'player') { bubbles[i].textContent = m.content; }
+        else {
+          // Convert markdown to HTML for editor messages
+          var html = m.content
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')  // escape HTML first
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')  // **bold**
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>')  // *italic*
+            .replace(/\n\n/g, '</p><p>')  // double newline = paragraph
+            .replace(/\n/g, '<br>');  // single newline = line break
+          bubbles[i].innerHTML = '<p>' + html + '</p>';
+        }
+      });
+    }
+    list.scrollTop = list.scrollHeight;
+  }).catch(function() {});
+}
+
+init();
+</script>
+</body>
+</html>
