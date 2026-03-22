@@ -141,8 +141,10 @@ fi
       sleep 1
       echo "set timeout $RESUME_REMAINING" >&3
       sleep 1
-      # Update turn_start_epoch to now so status page calculates the correct deadline
-      date +%s > "$TURN_START_FILE"
+      # Update turn_start_epoch so status page calculates correct deadline
+      # Set to (now - elapsed) = real turn start, NOT now, so future restarts
+      # can calculate the correct remaining time from this epoch
+      echo $(($(date +%s) - (SAVE_TIMEOUT - RESUME_REMAINING))) > "$TURN_START_FILE"
       # Refresh status page with the new deadline
       /opt/freeciv/generate_status_json.sh >> /data/saves/status-generator.log 2>&1 &
 
