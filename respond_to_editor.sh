@@ -381,27 +381,24 @@ build_messages() {
   local player="$1"
   local limit="${2:-30}"
 
-  local history
-  history=$(sqlite3 "$DB_PATH" "
+  # Use sqlite3 -json to handle multi-line content correctly
+  local raw_json
+  raw_json=$(sqlite3 -json "$DB_PATH" "
     SELECT role, content FROM editor_messages
     WHERE player_name='$player'
-    ORDER BY created_at DESC LIMIT $limit;" 2>/dev/null)
+    ORDER BY created_at ASC LIMIT $limit;" 2>/dev/null)
 
-  local messages_json="[]"
-  local reversed
-  reversed=$(echo "$history" | tac 2>/dev/null || echo "$history" | tail -r 2>/dev/null || echo "$history")
+  if [ -z "$raw_json" ] || [ "$raw_json" = "[]" ]; then
+    printf '[]'
+    return
+  fi
 
-  while IFS='|' read -r role content; do
-    [ -z "$role" ] && continue
-    [ -z "$content" ] && continue
-    local safe_content
-    safe_content=$(printf '%s' "$content" | jq -Rs '.')
-    # Skip if content is empty/whitespace after jq encoding
-    [ "$safe_content" = '""' ] && continue
-    local api_role="user"
-    [ "$role" = "editor" ] && api_role="assistant"
-    messages_json=$(echo "$messages_json" | jq --arg r "$api_role" --argjson c "$safe_content" '. + [{role: $r, content: $c}]')
-  done <<< "$reversed"
+  # Convert to API format: role player->user, editor->assistant
+  local messages_json
+  messages_json=$(echo "$raw_json" | jq -c '[.[] | {
+    role: (if .role == "player" then "user" else "assistant" end),
+    content: .content
+  } | select(.content != null and .content != "")]')
 
   printf '%s' "$messages_json"
 }
