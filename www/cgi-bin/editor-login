@@ -50,8 +50,8 @@ fi
 [ -z "$BODY" ] && json_error "Empty request body"
 
 # --- extract credentials ---
-USERNAME=$(printf '%s' "$BODY" | jq -r '.username // empty' 2>/dev/null | tr -d '\n')
-PASSWORD=$(printf '%s' "$BODY" | jq -r '.password // empty' 2>/dev/null | tr -d '\n')
+USERNAME=$(printf '%s' "$BODY" | tr -d '\r' | jq -r '.username // empty' 2>/dev/null | tr -d '\n')
+PASSWORD=$(printf '%s' "$BODY" | tr -d '\r' | jq -r '.password // empty' 2>/dev/null | tr -d '\n')
 [ -z "$USERNAME" ] && json_error "Missing username"
 [ -z "$PASSWORD" ] && json_error "Missing password"
 

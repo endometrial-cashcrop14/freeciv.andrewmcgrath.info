@@ -60,7 +60,8 @@ fi
 [ -z "$BODY" ] && json_error "Empty request body"
 
 # --- extract message ---
-MESSAGE=$(echo "$BODY" | jq -r '.message // empty' 2>/dev/null)
+# Use printf to avoid echo adding newlines; strip \r from Windows line endings
+MESSAGE=$(printf '%s' "$BODY" | tr -d '\r' | jq -r '.message // empty' 2>/dev/null)
 [ -z "$MESSAGE" ] && json_error "Missing message"
 
 # --- sanitize message ---
