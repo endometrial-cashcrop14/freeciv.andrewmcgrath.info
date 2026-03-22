@@ -7,7 +7,25 @@ SAVE_DIR=/data/saves
 WEBROOT=/opt/freeciv/www
 LOGFILE=/data/saves/server.log
 MARKER=/tmp/last-notified-turn
+# Two epoch files track the turn timer:
+#
+# TURN_START_FILE: Used by the STATUS PAGE to display the countdown.
+#   Set to NOW whenever the timeout is (re)set — including mid-turn restarts.
+#   The status page calculates: deadline = turn_start_epoch + live_timeout.
+#   On a fresh turn: set to NOW (same as real start).
+#   On a mid-turn restart: set to NOW (even though the turn started earlier),
+#     because the live_timeout is now a reduced value matching the remaining time.
+#
+# REAL_TURN_START_FILE: Used by the STARTUP SCRIPT to survive multiple restarts.
+#   Set to NOW only when a genuinely new turn begins. Never overwritten on restart.
+#   The startup script calculates: remaining = 23h - (NOW - real_turn_start).
+#   This prevents timer drift when deploying multiple times in one turn.
+#
+# On a new turn: both files get the same value (NOW).
+# On a mid-turn restart: only TURN_START_FILE changes (to NOW), while
+#   REAL_TURN_START_FILE stays at the original turn start time.
 TURN_START_FILE=/data/saves/turn_start_epoch
+REAL_TURN_START_FILE=/data/saves/real_turn_start_epoch
 
 mkdir -p "$SAVE_DIR/archived"
 # Move any existing timestamped saves out of the main directory
@@ -72,20 +90,19 @@ if [ -n "$LATEST_SAVE" ]; then
   fi
   rm -f "$TMPFILE"
   # Calculate remaining turn time
-  # Prefer turn_start_epoch (survives restarts) over phase_seconds (gets zeroed each restart)
-  # Always use the default 23hr timeout (82800) as the base, not SAVE_TIMEOUT which may
-  # already be a reduced value from a previous restart
+  # Use real_turn_start_epoch (the actual moment the turn began, survives restarts)
+  # rather than phase_seconds (gets zeroed each restart) or save timeout (gets reduced)
   DEFAULT_TIMEOUT=82800
-  if [ -f "$TURN_START_FILE" ]; then
-    TURN_START_SAVED=$(cat "$TURN_START_FILE")
+  if [ -f "$REAL_TURN_START_FILE" ]; then
+    TURN_START_SAVED=$(cat "$REAL_TURN_START_FILE")
     NOW_EPOCH=$(date +%s)
     REAL_ELAPSED=$((NOW_EPOCH - TURN_START_SAVED))
     RESUME_REMAINING=$((DEFAULT_TIMEOUT - REAL_ELAPSED))
-    echo "[startup] Using turn_start_epoch: started ${REAL_ELAPSED}s ago, remaining=${RESUME_REMAINING}s"
+    echo "[startup] Using real_turn_start_epoch: started ${REAL_ELAPSED}s ago, remaining=${RESUME_REMAINING}s"
     echo "[startup] (phase_seconds=$SAVE_PHASE_SECONDS, save_timeout=$SAVE_TIMEOUT — ignored, using default $DEFAULT_TIMEOUT)"
   else
     RESUME_REMAINING=$((DEFAULT_TIMEOUT - SAVE_PHASE_SECONDS))
-    echo "[startup] No turn_start_epoch, using phase_seconds: remaining=${RESUME_REMAINING}s"
+    echo "[startup] No real_turn_start_epoch, using phase_seconds: remaining=${RESUME_REMAINING}s"
   fi
   if [ "$RESUME_REMAINING" -lt 60 ]; then
     RESUME_REMAINING=0
@@ -144,10 +161,12 @@ fi
       sleep 1
       echo "set timeout $RESUME_REMAINING" >&3
       sleep 1
-      # Update turn_start_epoch so status page calculates correct deadline
-      # Set to (now - elapsed) = real turn start, NOT now, so future restarts
-      # can calculate the correct remaining time from this epoch
-      echo $(($(date +%s) - (DEFAULT_TIMEOUT - RESUME_REMAINING))) > "$TURN_START_FILE"
+      # turn_start_epoch = NOW so status page calculates: NOW + reduced_timeout = correct deadline
+      date +%s > "$TURN_START_FILE"
+      # real_turn_start_epoch preserves the actual turn start for future restart calculations
+      if [ ! -f "$REAL_TURN_START_FILE" ]; then
+        echo $(($(date +%s) - (DEFAULT_TIMEOUT - RESUME_REMAINING))) > "$REAL_TURN_START_FILE"
+      fi
       # Refresh status page with the new deadline
       /opt/freeciv/generate_status_json.sh >> /data/saves/status-generator.log 2>&1 &
 
@@ -178,6 +197,7 @@ fi
       echo "set timeout 82800" >&3
       sleep 1
       date +%s > "$TURN_START_FILE"
+      date +%s > "$REAL_TURN_START_FILE"
       /opt/freeciv/generate_status_json.sh >> /data/saves/status-generator.log 2>&1 &
     fi
   else
@@ -265,6 +285,7 @@ fi
         if [ -n "$turn" ] && [ "$turn" -gt "$last_notified" ] 2>/dev/null; then
           echo "$turn" > "$MARKER"
           date +%s > "$TURN_START_FILE"
+          date +%s > "$REAL_TURN_START_FILE"
           # Estimate year (turn_notify.sh will try to read exact year from save file)
           year=$(((-4000 + (turn - 1) * 50)))
           # Refresh status page first so turn_notify.sh can read fresh JSON
