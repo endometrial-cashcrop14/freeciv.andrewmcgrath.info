@@ -71,8 +71,19 @@ if [ -n "$LATEST_SAVE" ]; then
     echo "[startup] Reset phase_seconds to 0 to prevent auto-advance"
   fi
   rm -f "$TMPFILE"
-  # Calculate remaining turn time: timeout - elapsed
-  RESUME_REMAINING=$((SAVE_TIMEOUT - SAVE_PHASE_SECONDS))
+  # Calculate remaining turn time
+  # Prefer turn_start_epoch (survives restarts) over phase_seconds (gets zeroed each restart)
+  if [ -f "$TURN_START_FILE" ]; then
+    TURN_START_SAVED=$(cat "$TURN_START_FILE")
+    NOW_EPOCH=$(date +%s)
+    REAL_ELAPSED=$((NOW_EPOCH - TURN_START_SAVED))
+    RESUME_REMAINING=$((SAVE_TIMEOUT - REAL_ELAPSED))
+    echo "[startup] Using turn_start_epoch: started ${REAL_ELAPSED}s ago, remaining=${RESUME_REMAINING}s"
+    echo "[startup] (phase_seconds=$SAVE_PHASE_SECONDS was unreliable due to restart zeroing)"
+  else
+    RESUME_REMAINING=$((SAVE_TIMEOUT - SAVE_PHASE_SECONDS))
+    echo "[startup] Using phase_seconds: remaining=${RESUME_REMAINING}s"
+  fi
   if [ "$RESUME_REMAINING" -lt 60 ]; then
     RESUME_REMAINING=0
     echo "[startup] Turn had already expired, will use default 23hr timeout"
