@@ -23,11 +23,14 @@ HISTORY_FILE="$SAVE_DIR/history.json"
 DIPLOMACY_FILE="$SAVE_DIR/diplomacy.json"
 
 # Provider: anthropic or openai (default: openai)
-GAZETTE_PROVIDER="${GAZETTE_PROVIDER:-openai}"
-if [ -f "$SCRIPT_DIR/.env" ]; then
-  local_provider=$(grep '^GAZETTE_PROVIDER=' "$SCRIPT_DIR/.env" | head -1 | sed 's/^GAZETTE_PROVIDER=//' | tr -d '[:space:]"'"'")
-  [ -n "$local_provider" ] && GAZETTE_PROVIDER="${GAZETTE_PROVIDER:-$local_provider}"
+GAZETTE_PROVIDER="${GAZETTE_PROVIDER:-}"
+if [ -z "$GAZETTE_PROVIDER" ] && [ -f "$SCRIPT_DIR/.env" ]; then
+  GAZETTE_PROVIDER=$(grep '^GAZETTE_PROVIDER=' "$SCRIPT_DIR/.env" | head -1 | sed 's/^GAZETTE_PROVIDER=//' | tr -d '[:space:]"'"'")
 fi
+if [ -z "$GAZETTE_PROVIDER" ] && [ -f "$SAVE_DIR/gazette_provider" ]; then
+  GAZETTE_PROVIDER=$(cat "$SAVE_DIR/gazette_provider" | tr -d '[:space:]')
+fi
+GAZETTE_PROVIDER="${GAZETTE_PROVIDER:-openai}"
 
 # API keys: env var > .env file in script dir > file in save dir
 OPENAI_API_KEY="${OPENAI_API_KEY:-}"
