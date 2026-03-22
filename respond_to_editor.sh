@@ -118,8 +118,11 @@ fi
 DIPLOMACY_CONTEXT=""
 if [ -f "$DIPLOMACY_FILE" ]; then
   DIPLOMACY_CONTEXT=$(jq -r '
-    "Active wars: " + (if (.current | map(select(.state=="War")) | length) > 0 then ([.current[] | select(.state=="War") | .players | join(" vs ")] | join(", ")) else "none" end) + "\n" +
-    "Active alliances: " + (if (.current | map(select(.state=="Alliance")) | length) > 0 then ([.current[] | select(.state=="Alliance") | .players | join(" & ")] | join(", ")) else "none" end) + "\n" +
+    "Active wars: " + (if (.current | map(select(.status=="War")) | length) > 0 then ([.current[] | select(.status=="War") | .players | join(" vs ")] | join(", ")) else "none" end) + "\n" +
+    "Active alliances: " + (if (.current | map(select(.status=="Alliance")) | length) > 0 then ([.current[] | select(.status=="Alliance") | .players | join(" & ")] | join(", ")) else "none" end) + "\n" +
+    "Peace treaties: " + (if (.current | map(select(.status=="Peace")) | length) > 0 then ([.current[] | select(.status=="Peace") | .players | join(" & ")] | join(", ")) else "none" end) + "\n" +
+    "Armistices: " + (if (.current | map(select(.status=="Armistice")) | length) > 0 then ([.current[] | select(.status=="Armistice") | .players | join(" & ")] | join(", ")) else "none" end) + "\n" +
+    "All relationships: " + ([.current[] | "\(.players | join(" & ")): \(.status)"] | join(", ")) + "\n" +
     "Recent events: " + ([.events[-5:][] | "\(.players | join(" & ")): \(.from // "none") -> \(.to)"] | join("; "))
   ' "$DIPLOMACY_FILE" 2>/dev/null || true)
 fi
