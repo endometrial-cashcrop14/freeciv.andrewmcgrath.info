@@ -561,9 +561,9 @@ Keep reasons under 20 words. Do NOT explain outside the JSON. Output ONLY the JS
       fi
       [ -z "$PLAYER" ] && continue
 
-      # Verify this is a real player
-      IS_REAL=$(jq -r --arg p "$PLAYER" '.players[] | select(.name==$p) | .name' "$STATUS_FILE" 2>/dev/null)
-      [ -z "$IS_REAL" ] && continue
+      # Verify this is a real player (case-insensitive match, resolve to canonical name)
+      PLAYER=$(jq -r --arg p "$PLAYER" '.players[] | select(.name | ascii_downcase == ($p | ascii_downcase)) | .name' "$STATUS_FILE" 2>/dev/null)
+      [ -z "$PLAYER" ] && continue
 
       echo "[editor] Reaching out to $PLAYER (reason: ${OUTREACH_REASON:-none})..."
 
