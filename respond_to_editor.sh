@@ -454,7 +454,7 @@ if [ -n "$PENDING" ]; then
     SYSTEM_PROMPT=$(build_system_prompt "$PLAYER" "$PLAYER_NATION" "$PLAYER_GOV" "reply")
     MESSAGES_JSON=$(build_messages "$PLAYER" 30)
 
-    RESPONSE_TEXT=$(call_ai "$SYSTEM_PROMPT" "$MESSAGES_JSON" 300)
+    RESPONSE_TEXT=$(call_ai "$SYSTEM_PROMPT" "$MESSAGES_JSON" 2400)
 
     if [ -z "$RESPONSE_TEXT" ]; then
       echo "[editor] API call failed for $PLAYER"
@@ -582,7 +582,7 @@ Keep reasons under 20 words. Do NOT explain outside the JSON. Output ONLY the JS
         MESSAGES_JSON=$(echo "$MESSAGES_JSON" | jq --arg p "$outreach_prompt" '. + [{"role":"user","content":$p}]')
       fi
 
-      RESPONSE_TEXT=$(call_ai "$SYSTEM_PROMPT" "$MESSAGES_JSON" 400)
+      RESPONSE_TEXT=$(call_ai "$SYSTEM_PROMPT" "$MESSAGES_JSON" 2400)
 
       if [ -z "$RESPONSE_TEXT" ]; then
         echo "[editor] Outreach API call failed for $PLAYER"

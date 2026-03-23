@@ -6,7 +6,7 @@
 DB_PATH="${DB_PATH:-/data/saves/freeciv.sqlite}"
 STATUS_FILE="/opt/freeciv/www/status.json"
 NOW=$(date +%s)
-MAX_MESSAGE_LENGTH=1000
+MAX_MESSAGE_LENGTH=9000
 
 # --- helpers ---
 json_error() {
@@ -54,7 +54,7 @@ PLAYER=$(sqlite3 "$DB_PATH" "SELECT player_name FROM editor_sessions WHERE token
 BODY=""
 if [ -n "$CONTENT_LENGTH" ] && [ "$CONTENT_LENGTH" -gt 0 ] 2>/dev/null; then
   READ_LEN=$CONTENT_LENGTH
-  [ "$READ_LEN" -gt 2048 ] && READ_LEN=2048
+  [ "$READ_LEN" -gt 24576 ] && READ_LEN=24576
   BODY=$(head -c "$READ_LEN")
 fi
 [ -z "$BODY" ] && json_error "Empty request body"

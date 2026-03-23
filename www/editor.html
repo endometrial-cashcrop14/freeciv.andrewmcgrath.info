@@ -116,7 +116,7 @@ function showChat() {
     '<div class="editor-messages" id="msg-list"></div>' +
     '<div class="editor-bar">The editor responds within the hour. <a id="logout-btn">Sign out (' + esc(player) + ')</a></div>' +
     '<div class="editor-compose">' +
-    '<textarea id="msg-input" placeholder="Write to the editor..." maxlength="1000"></textarea>' +
+    '<textarea id="msg-input" placeholder="Write to the editor..." maxlength="9000"></textarea>' +
     '<div class="editor-compose-bar"><span class="hint">' + (navigator.platform.indexOf('Mac') >= 0 ? 'Cmd' : 'Ctrl') + '+Enter to send</span><button id="send-btn">Send</button></div></div></div>';
   document.getElementById('send-btn').addEventListener('click', doSend);
   document.getElementById('msg-input').addEventListener('keydown', function(e) {
