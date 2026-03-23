@@ -374,7 +374,7 @@ ${prev_issue}"
       --arg user "$user_prompt" \
       '{
         model: "claude-opus-4-6",
-        max_tokens: 2500,
+        max_tokens: 8000,
         system: $system,
         messages: [
           {role: "user", content: $user}
@@ -410,7 +410,7 @@ ${prev_issue}"
           {role: "user", content: $user}
         ],
         temperature: 0.9,
-        max_completion_tokens: 3000,
+        max_completion_tokens: 8000,
         response_format: {type: "json_object"}
       }')
 
