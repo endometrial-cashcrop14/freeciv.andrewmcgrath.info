@@ -515,12 +515,35 @@ if [ "$DO_OUTREACH" = "true" ] && [ -f "$STATUS_FILE" ]; then
       fi
     done
    else
+    # Build outreach context: who's been contacted, who hasn't, what players are saying
+    RECENTLY_CONTACTED=$(sqlite3 "$DB_PATH" "
+      SELECT player_name || ' (turn ' || GROUP_CONCAT(DISTINCT turn) || ')'
+      FROM editor_messages WHERE role='editor' AND turn > $((TURN - 4))
+      GROUP BY player_name ORDER BY MAX(turn) DESC;" 2>/dev/null | tr '\n' ', ')
+
+    NEVER_CONTACTED=$(jq -r '.players[].name' "$STATUS_FILE" 2>/dev/null | while read -r pname; do
+      has_msg=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM editor_messages WHERE player_name='$pname' OR player_name='$(echo "$pname" | tr '[:upper:]' '[:lower:]')';" 2>/dev/null || echo "0")
+      [ "$has_msg" -eq 0 ] && echo "$pname"
+    done | tr '\n' ', ')
+
+    # Summarise recent player conversations so the editor can seek reactions
+    RECENT_TALK=$(sqlite3 "$DB_PATH" "
+      SELECT player_name || ': ' || substr(content, 1, 150)
+      FROM editor_messages WHERE role='player'
+      ORDER BY created_at DESC LIMIT 10;" 2>/dev/null | tr '\n' '|')
+    RECENT_TALK_FORMATTED=$(echo "$RECENT_TALK" | sed 's/|/\n- /g' | sed '1s/^/- /')
+
     # Pick interesting players using AI
-    PICK_PROMPT="You are the editor-in-chief of The Civ Chronicle. You need quotes and comments for the next issue. Pick 1-3 players to contact — but ONLY if you have a genuine story angle that warrants their comment. Don't bother people without a reason. Consider:
-- Players directly involved in wars, new alliances, or diplomatic shifts THIS turn
-- Players who just achieved something major (wonders, spaceship, dramatic score change)
-- Players in crisis (losing cities, under attack, revolting)
-- Players whose silence on a major event is itself newsworthy
+    PICK_PROMPT="You are the editor-in-chief of The Civ Chronicle. Pick 1-3 players to reach out to for the next issue. You want a DIVERSE spread of voices — not the same players every turn.
+
+SELECTION PRIORITIES (in order):
+1. Players who have NEVER been contacted — cold outreach to get new voices into the paper
+2. Players referenced or discussed by OTHER players — seek their reaction/comment
+3. Players at the extremes: top-ranked leaders, bottom-ranked underdogs, or those with unusual situations
+4. Players involved in wars, alliances, or diplomatic shifts THIS turn
+5. Players whose silence on a major event is itself newsworthy
+
+AVOID re-contacting players the editor spoke to in the last 2-3 turns unless there is a compelling new development.
 
 Current game state:
 ${GAME_CONTEXT}
@@ -528,12 +551,17 @@ ${GAME_CONTEXT}
 Diplomacy:
 ${DIPLOMACY_CONTEXT}
 
-Players already contacted by the editor this turn: $(sqlite3 "$DB_PATH" "SELECT DISTINCT player_name FROM editor_messages WHERE turn=$TURN AND role='editor';" 2>/dev/null | tr '\n' ', ')
+Players the editor has contacted recently: ${RECENTLY_CONTACTED:-none}
 
-Players who have EVER written to the editor: $(sqlite3 "$DB_PATH" "SELECT DISTINCT player_name FROM editor_messages WHERE role='player';" 2>/dev/null | tr '\n' ', ')
+Players the editor has NEVER contacted: ${NEVER_CONTACTED:-none}
 
-Return ONLY a JSON array of objects with player name and the reason/angle for contacting them (1-3 players). Example:
-[{\"name\":\"DetectiveG\",\"reason\":\"Losing the war — 10 units vs 40. Survival plan?\"},{\"name\":\"shogun\",\"reason\":\"Communist alliance is the only counter to the democratic superbloc.\"}]
+Players already contacted THIS turn: $(sqlite3 "$DB_PATH" "SELECT DISTINCT player_name FROM editor_messages WHERE turn=$TURN AND role='editor';" 2>/dev/null | tr '\n' ', ')
+
+Recent things players have told the editor (use these to seek reactions from the people they mention):
+${RECENT_TALK_FORMATTED}
+
+Return ONLY a JSON array of objects with player name and the reason/angle for contacting them (1-3 players). Prefer at least one player who has NEVER been contacted. Example:
+[{\"name\":\"DetectiveG\",\"reason\":\"Bottom of the rankings with 1 city — how does Ecuador plan to survive?\"},{\"name\":\"Tankerjon\",\"reason\":\"Shogun told us the war was a misunderstanding — what's Rome's side of the story?\"}]
 Keep reasons under 20 words. Do NOT explain outside the JSON. Output ONLY the JSON array."
 
     PICKS_RAW=$(call_ai "$PICK_PROMPT" '[{"role":"user","content":"Return only the JSON array of 1-3 player objects with name and reason. Keep reasons under 20 words each."}]' 300)

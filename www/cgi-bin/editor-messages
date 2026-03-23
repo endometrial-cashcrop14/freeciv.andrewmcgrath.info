@@ -45,7 +45,7 @@ fi
 # --- fetch messages ---
 # PLAYER comes from DB (trusted), not user input
 # sqlite3 -json handles escaping, pipe through jq -c to compact (removes literal newlines)
-MESSAGES=$(sqlite3 -json "$DB_PATH" "SELECT role, content, created_at FROM editor_messages WHERE player_name='$PLAYER' ORDER BY created_at ASC LIMIT 100;" 2>/dev/null | jq -c '.')
+MESSAGES=$(sqlite3 -json "$DB_PATH" "SELECT role, content, created_at FROM editor_messages WHERE LOWER(player_name)=LOWER('$PLAYER') ORDER BY created_at ASC LIMIT 100;" 2>/dev/null | jq -c '.')
 [ -z "$MESSAGES" ] && MESSAGES="[]"
 
 echo "Status: 200 OK"
