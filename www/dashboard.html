@@ -156,6 +156,7 @@ function load(targetPlayer) {
 
     render(d);
   }).catch(function(e) {
+    console.error('Dashboard load error:', e);
     document.getElementById('content').innerHTML = '<div class="loading">Failed to load dashboard</div>';
   });
 }

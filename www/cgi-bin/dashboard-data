@@ -44,7 +44,8 @@ REQUESTED=$(echo "$QUERY_STRING" | sed -n 's/.*player=\([a-zA-Z0-9_-]*\).*/\1/p'
 if [ -n "$REQUESTED" ] && [ "$(echo "$REQUESTED" | tr '[:upper:]' '[:lower:]')" != "$(echo "$PLAYER" | tr '[:upper:]' '[:lower:]')" ]; then
   # Must be admin
   IS_ADMIN=0
-  [ -f "$ADMIN_FILE" ] && IS_ADMIN=$(grep -ixc "$PLAYER" "$ADMIN_FILE" 2>/dev/null || echo 0)
+  [ -f "$ADMIN_FILE" ] && IS_ADMIN=$(grep -ixc "$PLAYER" "$ADMIN_FILE" 2>/dev/null || true)
+  [ -z "$IS_ADMIN" ] && IS_ADMIN=0
   if [ "$IS_ADMIN" -gt 0 ]; then
     TARGET_PLAYER=$(echo "$REQUESTED" | tr '[:upper:]' '[:lower:]')
   else
@@ -57,7 +58,8 @@ TARGET_LOWER=$(echo "$TARGET_PLAYER" | tr '[:upper:]' '[:lower:]')
 
 # --- check for admin status (for player list) ---
 IS_ADMIN=0
-[ -f "$ADMIN_FILE" ] && IS_ADMIN=$(grep -ixc "$PLAYER" "$ADMIN_FILE" 2>/dev/null || echo 0)
+[ -f "$ADMIN_FILE" ] && IS_ADMIN=$(grep -ixc "$PLAYER" "$ADMIN_FILE" 2>/dev/null || true)
+[ -z "$IS_ADMIN" ] && IS_ADMIN=0
 
 # --- get list of all available players (admin only) ---
 ALL_PLAYERS="[]"
