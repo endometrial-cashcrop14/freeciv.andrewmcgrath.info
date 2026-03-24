@@ -133,14 +133,19 @@ function showChat() {
     '<div class="editor-compose">' +
     '<textarea id="msg-input" placeholder="Write to the editor..." maxlength="9000"></textarea>' +
     '<div class="editor-compose-bar"><span class="hint">' + (navigator.platform.indexOf('Mac') >= 0 ? 'Cmd' : 'Ctrl') + '+Enter to send</span><button id="send-btn">Send</button></div></div></div>';
+  var input = document.getElementById('msg-input');
+  var draftKey = 'editorDraft_' + (player || '');
+  var saved = localStorage.getItem(draftKey);
+  if (saved) input.value = saved;
+  input.addEventListener('input', function() { localStorage.setItem(draftKey, input.value); });
   document.getElementById('send-btn').addEventListener('click', doSend);
-  document.getElementById('msg-input').addEventListener('keydown', function(e) {
+  input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { doSend(); e.preventDefault(); }
   });
   loadMessages();
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(loadMessages, 60000);
-  document.getElementById('msg-input').focus();
+  input.focus();
 }
 
 function doLogin() {
@@ -168,7 +173,9 @@ function doSend() {
   var input = document.getElementById('msg-input');
   var msg = input.value.trim();
   if (!msg) return;
+  var draftKey = 'editorDraft_' + (player || '');
   input.value = ''; input.disabled = true;
+  localStorage.removeItem(draftKey);
   fetch('/cgi-bin/editor-submit?token=' + token, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -178,12 +185,12 @@ function doSend() {
     if (d.ok) { loadMessages(); }
     else if (d.error && d.error.indexOf('expired') >= 0) { token = null; window.location.href = '/login.html?next=/editor.html'; }
     else {
-      input.value = msg;
+      input.value = msg; localStorage.setItem(draftKey, msg);
       var bar = document.querySelector('.editor-compose-bar .hint');
       if (bar) { bar.textContent = d.error || 'Failed to send'; bar.style.color = '#8b0000'; }
     }
     input.focus();
-  }).catch(function() { input.disabled = false; input.value = msg; });
+  }).catch(function() { input.disabled = false; input.value = msg; localStorage.setItem(draftKey, msg); });
 }
 
 function loadMessages() {
