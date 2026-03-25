@@ -36,6 +36,9 @@ set aifill 0
 # Victory: allied only (no spacerace)
 set victories ALLIED
 
+# Disable barbarians
+set barbarians DISABLED
+
 # Make all nations available
 set nationset all
 
