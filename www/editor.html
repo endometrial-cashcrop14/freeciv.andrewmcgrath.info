@@ -222,14 +222,13 @@ function loadMessages() {
     if (d.messages) {
       var bubbles = list.querySelectorAll('.editor-msg-bubble');
       d.messages.forEach(function(m, i) {
+        var escaped = esc(m.content);
         if (m.role === 'player') {
-          var escaped = m.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           bubbles[i].innerHTML = '<p>' + escaped.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
         }
         else {
           // Convert markdown to HTML for editor messages
-          var html = m.content
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')  // escape HTML first
+          var html = escaped
             .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')  // **bold**
             .replace(/\*([^*]+)\*/g, '<em>$1</em>')  // *italic*
             .replace(/\n\n/g, '</p><p>')  // double newline = paragraph
