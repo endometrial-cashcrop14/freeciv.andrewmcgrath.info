@@ -199,7 +199,8 @@
       .st-online { color:#3b82f6!important; opacity:1!important; }
       .st-seen { color:#a78bfa!important; opacity:1!important; }
       .st-none { color:#5a6a82!important; opacity:0.3!important; }
-      .nav-links { display:none; }
+      nav .inner { flex-wrap:wrap; gap:6px; justify-content:center; }
+      .nav-links { gap:8px; font-size:10px; flex-wrap:wrap; justify-content:center; order:3; width:100%; }
       .chart-container canvas { height:220px!important; }
       .connect-box { padding:20px 12px; }
       .connect-box .host { font-size:18px; }
@@ -325,7 +326,7 @@
   function renderNav(d) {
     var links = document.getElementById('nav-links');
     links.innerHTML = d.game.turn > 0
-      ? '<a href="#gazette">Chronicle</a><a href="#rankings">Rankings</a><a href="#history">History</a><a href="#connect">Connect</a><a href="/login.html">Player Login</a>'
+      ? '<a href="#gazette">Chronicle</a><a href="#rankings">Rankings</a><a href="#history">History</a><a href="#connect">Connect</a><a href="/login.html">Player Login</a><a href="/changelog.html">Changelog</a>'
       : '<a href="#connect">Connect</a><a href="#rules">Rules</a><a href="/changelog.html">Changelog</a>';
     var on = d.game.server_status === 'Online';
     document.getElementById('status-pill').innerHTML =
