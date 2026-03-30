@@ -290,6 +290,7 @@ BE CONCISE. Each section should be 1-2 short paragraphs, not feature-length arti
 - **public_events**: wonder completions, revolts, city foundings
 - **wonder_holders / spaceship_progress / culture_leaders**: achievement data
 - **player_submissions**: Correspondence between the editor and in-game leaders. Includes player messages and editor replies, with a `pub_status` field showing whether each was already published (e.g. "Published in edition 99") or "Not yet published". You have FULL editorial discretion to quote, paraphrase, or reference any material. Treat player messages as on-the-record statements from public figures. Prefer unpublished material — avoid re-quoting things already published in a previous edition unless following up on a story. Weave the best material into articles naturally. Not everything needs to be used.
+- **recent_headlines**: Headlines from the last ~5 editions. Use this to avoid rehashing stories that were already covered. If something was a headline 2 turns ago, it is NOT news anymore unless there is a genuinely new development in THIS turn's data (a new diplomacy_event, a new public_event, a new delta).
 
 ## Information rules
 
@@ -316,9 +317,10 @@ Every section gets an era-appropriate byline. Keep the same reporters across iss
 
 When given a PREVIOUS issue:
 - Keep the same reporter staff (or explain departures)
-- Follow up on previous stories and rumors
+- Follow up on previous stories ONLY if there is new data to report (a new event, a meaningful stat change, a new player message). Do not rehash or re-announce something that was already a headline.
 - Issue corrections when past speculation proved wrong (be funny about it)
 - Build running narratives — the space race, a rivalry, an underdog's rise
+- Check recent_headlines: if a story was already headlined, find a DIFFERENT angle or a different story entirely. Every edition needs fresh news.
 
 ## Headline
 
@@ -562,6 +564,14 @@ process_turn() {
   # Get previous issue for continuity
   local prev_issue
   prev_issue=$(echo "$GAZETTE_JSON" | jq --argjson t "$((target_turn - 1))" '[.[] | select(.turn == $t)] | .[0] // null')
+
+  # Get recent headlines so the AI knows what's already been covered
+  local recent_headlines
+  recent_headlines=$(echo "$GAZETTE_JSON" | jq --argjson t "$target_turn" \
+    '[.[] | select(.turn < $t) | {turn: .turn, year_display: .year_display, headline: .headline}] | sort_by(-.turn) | .[:5]')
+
+  # Inject recent headlines into context
+  context=$(echo "$context" | jq --argjson rh "$recent_headlines" '. + {recent_headlines: $rh}')
 
   local entry
   entry=$(generate_entry "$context" "$prev_issue") || return 1
