@@ -118,6 +118,10 @@ build_turn_context() {
 
   # Build aggregate stats (no per-player breakdown to avoid leaking strategy)
   # Public information only — per-player details stay private unless inherently visible
+  # Pre-filter history to last 5 turns to avoid ARG_MAX overflow on the jq command line
+  local recent_history
+  recent_history=$(echo "$history" | jq --argjson t "$target_turn" '[.[] | select(.turn > ($t - 5))]')
+
   local context
   context=$(jq -n \
     --argjson player_subs "$submissions" \
@@ -125,7 +129,7 @@ build_turn_context() {
     --argjson prev "${prev_entry:-null}" \
     --argjson dipl_events "$(echo "$diplomacy" | jq --argjson t "$target_turn" '[.events[] | select(.turn == $t)]')" \
     --argjson all_dipl "$(echo "$diplomacy" | jq '.current // []')" \
-    --argjson all_history "$history" \
+    --argjson all_history "$recent_history" \
     '{
       turn: $curr.turn,
       year: $curr.year,
